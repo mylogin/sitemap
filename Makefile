@@ -1,11 +1,15 @@
-CXX 		= g++
-CXX_FLAGS 	= -Wall -Wextra -std=c++11
-LIBRARIES 	= -lcrypto -lssl
+CXX := g++
+CXX_FLAGS := -Wall -Wextra -std=c++11
+EXECUTABLE := sitemap
+PREFIX := /usr/local/bin
+LIBRARIES := -pthread
 ifeq ($(OS),Windows_NT)
 	LIBRARIES += -lws2_32
+	EXECUTABLE := $(addsuffix .exe,$(EXECUTABLE))
 endif
-EXECUTABLE 	= sitemap
-PREFIX = /usr/local/bin
+ifeq ($(shell grep '\#define CPPHTTPLIB_OPENSSL_SUPPORT' sitemap.h -c),1)
+	LIBRARIES += -lcrypto -lssl
+endif
 
 .PHONY: all clean install uninstall
 
