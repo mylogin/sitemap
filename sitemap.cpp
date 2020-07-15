@@ -347,7 +347,7 @@ bool Main::set_url(Url_struct& url) {
 	std::unique_lock<std::mutex> lk(mutex);
 	if(url_limit && url_all.size() >= url_limit) {
 		if(!url_lim_reached) {
-			log("other_error", "URL limit reached");
+			log("other", "URL limit reached");
 			url_lim_reached = true;
 		}
 		return false;
@@ -552,7 +552,7 @@ bool Main::handle_url(Url_struct& url_new, const std::string& found, const std::
 	catch (Url::parse_error& e) {
 		if(log_parse_url) {
 			CSV_Writer csv(cell_delim);
-			csv << e.what() << found << parent;
+			csv << e.what() << found << base_href << parent;
 			log("parse_url", csv.to_string());
 		}
 		return false;
@@ -560,8 +560,8 @@ bool Main::handle_url(Url_struct& url_new, const std::string& found, const std::
 	catch (Url::build_error& e) {
 		if(log_parse_url) {
 			CSV_Writer csv(cell_delim);
-			csv << "URL build error" << e.what() << found << base_href << parent;
-			log("other_error", csv.to_string());
+			csv << e.what() << found << base_href << parent;
+			log("parse_url", csv.to_string());
 		}
 		return false;
 	}
@@ -715,7 +715,7 @@ void Thread::http_finished() {
 			main->try_again(m_url.normalize);
 		} else if(main->log_error_reply) {
 			CSV_Writer csv(main->cell_delim);
-			csv << "no reply" << m_url.remote.back() << (m_url.remote.size() > 1 ? m_url.remote[m_url.remote.size() - 2] : m_url.parent);
+			csv << "no reply" << Utils::join(m_url.remote, main->in_cell_delim.at(0)) << m_url.parent;
 			main->log("error_reply", csv.to_string());
 		}
 		return;
@@ -725,7 +725,7 @@ void Thread::http_finished() {
 			main->try_again(m_url.normalize);
 		} else if(main->log_error_reply) {
 			CSV_Writer csv(main->cell_delim);
-			csv << reply->status << m_url.remote.back() << (m_url.remote.size() > 1 ? m_url.remote[m_url.remote.size() - 2] : m_url.parent);
+			csv << reply->status << Utils::join(m_url.remote, main->in_cell_delim.at(0)) << m_url.parent;
 			main->log("error_reply", csv.to_string());
 		}
 		return;
