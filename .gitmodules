@@ -1,0 +1,9 @@
+[submodule "deps/http"]
+	path = deps/http
+	url = https://github.com/yhirose/cpp-httplib.git
+[submodule "deps/html"]
+	path = deps/html
+	url = https://github.com/mylogin/avhtml.git
+[submodule "deps/url"]
+	path = deps/url
+	url = https://github.com/mylogin/CxxUrl.git

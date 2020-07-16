@@ -2,12 +2,21 @@ CXX := g++
 CXX_FLAGS := -Wall -Wextra -std=c++11
 EXECUTABLE := sitemap
 PREFIX := /usr/local/bin
-LIBRARIES := -pthread
+LIBRARIES :=
+SSL := 0
+ifeq ($(shell grep '\#define CPPHTTPLIB_OPENSSL_SUPPORT' sitemap.h -c),1)
+	SSL := 1
+endif
 ifeq ($(OS),Windows_NT)
 	LIBRARIES += -lws2_32
+	ifeq ($(SSL),1)
+		LIBRARIES += -lcrypt32 -lcryptui
+	endif
 	EXECUTABLE := $(addsuffix .exe,$(EXECUTABLE))
+else
+	LIBRARIES += -pthread
 endif
-ifeq ($(shell grep '\#define CPPHTTPLIB_OPENSSL_SUPPORT' sitemap.h -c),1)
+ifeq ($(SSL),1)
 	LIBRARIES += -lcrypto -lssl
 endif
 
@@ -21,8 +30,8 @@ $(EXECUTABLE): url.o html.o sitemap.o
 url.o: deps/url/url.cpp deps/url/url.hpp deps/url/string.hpp
 	$(CXX) $(CXX_FLAGS) -c -o $@ $<
 
-html.o: deps/html/html5.cpp deps/html/html5.hpp
-	$(CXX) $(CXX_FLAGS) -c -o $@ $<
+html.o: deps/html/src/html5.cpp deps/html/include/html5.hpp
+	$(CXX) $(CXX_FLAGS) -Ideps/html/include -c -o $@ $<
 
 sitemap.o: sitemap.cpp sitemap.h deps/http/httplib.h
 	$(CXX) $(CXX_FLAGS) -c -o $@ $<
