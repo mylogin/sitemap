@@ -1,13 +1,14 @@
 ## Build & Usage
 
-	git clone git@github.com:mylogin/sitemap.git
+	git clone --recursive https://github.com/mylogin/sitemap.git
 	cd sitemap
 	make
+	# edit setting.txt
 	./sitemap setting.txt
 
 ## Dependencies
 
-All dependencies are included in the folder 'deps'
+All dependencies are placed in the 'deps' folder as submodules.
 
 <https://github.com/mylogin/avhtml>
 
@@ -109,17 +110,16 @@ Example 2:
 
 ### Logs
 
-All log files are written in the CSV format.
+All log files are written in CSV format, the file name is the same as the parameter name without the log_ prefix.
 
 Columns description:
 
 | Column | Description |
 |-|-|
 | found | URL found on the page as is |
-| url | Handled URL with all parts (scheme, host etc.) |
+| url | Handled URL with all parts (scheme, host etc.) or URL chain in case of redirects |
 | status_code | HTTP response status code |
 | parent | Page on which url was found |
-| url_chain | URL chain in case of redirect |
 | reason | Reason of error |
 | time | HTTP response time |
 | is_html | Is page content is html |
@@ -133,23 +133,17 @@ Urls with status_code != Succees and status_code != Redirection.
 
 Columns: `status_code,url,parent`
 
-Output file: *error_reply.log*
-
 #### log_redirect
 
 Urls that returned redirect status.
 
-Columns: `url_chain,parent`
-
-Output file: *redirect.log*
+Columns: `url,parent`
 
 #### log_parse_url
 
 Urls with bad format.
 
-Columns: `reason,found,parent`
-
-Output file: *parse_url.log*
+Columns: `reason,found,base_href,parent`
 
 #### log_ignored_url
 
@@ -157,23 +151,17 @@ Urls that did not pass custom filters.
 
 Columns: `found,parent`
 
-Output file: *ignored_url.log*
-
 #### log_info
 
 Verbose log.
 
-Columns: `time,is_html,try_cnt,redirect_cnt,charset,found,url_chain,parent`
-
-Output file: *info.log*
+Columns: `time,is_html,try_cnt,redirect_cnt,charset,found,url,parent`
 
 #### log_other
 
 Other errors and exceptions.
 
 Columns: `reason`
-
-Output file: *other.log*
 
 ### Sitemap XML
 
