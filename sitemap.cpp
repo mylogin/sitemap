@@ -200,6 +200,8 @@ void Main::import_param(const std::string& file) {
 				log_info = true;
 			} else if(res[0] == "debug") {
 				param_debug = true;
+			} else if(res[0] == "cert_verification") {
+				cert_verification = true;
 			}
 		} else if(res.size() == 2) {
 			if(res[0] == "url") {
@@ -230,6 +232,10 @@ void Main::import_param(const std::string& file) {
 				cell_delim = res[1];
 			} else if(res[0] == "in_cell_delim") {
 				in_cell_delim = res[1];
+			} else if(res[0] == "ca_cert_file_path") {
+				ca_cert_file_path = res[1];
+			} else if(res[0] == "ca_cert_dir_path") {
+				ca_cert_dir_path = res[1];
 			}
 		} else if(res[0] == "filter" && res.size() == 4) {
 			Filter f;
@@ -683,7 +689,20 @@ void Thread::load() {
 			if(m_url.ssl) {
 #ifdef CPPHTTPLIB_OPENSSL_SUPPORT
 				cli = std::make_shared<httplib::SSLClient>(m_url.host.c_str());
+				httplib::SSLClient& rcli = static_cast<httplib::SSLClient &>(*cli);
+				rcli.enable_server_certificate_verification(main->cert_verification);
+				if(main->cert_verification) {
+					if(!main->ca_cert_file_path.empty()) {
+						rcli.set_ca_cert_path(main->ca_cert_file_path.c_str());
+					}
+					if(!main->ca_cert_dir_path.empty()) {
+						rcli.set_ca_cert_path(nullptr, main->ca_cert_dir_path.c_str());
+					}
+				}
 #else
+				CSV_Writer csv(main->cell_delim);
+				csv << "HTTPS not supported" << Utils::join(m_url.remote, main->in_cell_delim.at(0)) << m_url.parent;
+				main->log("error_reply", csv.to_string());
 				continue;
 #endif
 			} else {
@@ -694,6 +713,17 @@ void Thread::load() {
 			m_url.time += tmr.elapsed();
 			main->debug(std::to_string(id) + " " + std::to_string(m_url.time) + " " + m_url.remote.back());
 			main->update_url(m_url);
+#ifdef CPPHTTPLIB_OPENSSL_SUPPORT
+			if(m_url.ssl) {
+				auto res = static_cast<httplib::SSLClient &>(*cli).get_openssl_verify_result();
+				if(res != X509_V_OK) {
+					CSV_Writer csv(main->cell_delim);
+					csv << std::string("Certificate verification error: ") + X509_verify_cert_error_string(res) << Utils::join(m_url.remote, main->in_cell_delim.at(0)) << m_url.parent;
+					main->log("error_reply", csv.to_string());
+					continue;
+				}
+			}
+#endif
 			http_finished();
 			if(main->param_sleep) {
 				std::this_thread::sleep_for(std::chrono::seconds(main->param_sleep));
@@ -715,7 +745,7 @@ void Thread::http_finished() {
 			main->try_again(m_url.normalize);
 		} else if(main->log_error_reply) {
 			CSV_Writer csv(main->cell_delim);
-			csv << "no reply" << Utils::join(m_url.remote, main->in_cell_delim.at(0)) << m_url.parent;
+			csv << "No reply" << Utils::join(m_url.remote, main->in_cell_delim.at(0)) << m_url.parent;
 			main->log("error_reply", csv.to_string());
 		}
 		return;
@@ -725,7 +755,7 @@ void Thread::http_finished() {
 			main->try_again(m_url.normalize);
 		} else if(main->log_error_reply) {
 			CSV_Writer csv(main->cell_delim);
-			csv << reply->status << Utils::join(m_url.remote, main->in_cell_delim.at(0)) << m_url.parent;
+			csv << std::string("Code: ") + std::to_string(reply->status) << Utils::join(m_url.remote, main->in_cell_delim.at(0)) << m_url.parent;
 			main->log("error_reply", csv.to_string());
 		}
 		return;

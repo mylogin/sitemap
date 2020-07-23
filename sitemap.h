@@ -136,6 +136,9 @@ public:
 	int xml_filemb_lim = 1;
 	int xml_entry_lim = 1000000;
 	int try_limit = 3;
+	bool cert_verification = false;
+	std::string ca_cert_file_path;
+	std::string ca_cert_dir_path;
 
 	bool running = true;
 	std::vector<Filter> param_filter;

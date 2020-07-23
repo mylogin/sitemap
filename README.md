@@ -5,16 +5,17 @@
 	make
 	# edit setting.txt
 	./sitemap setting.txt
+	# type `q` to quit or wait until the program ends
 
 ## Dependencies
 
 All dependencies are placed in the 'deps' folder as submodules.
 
-<https://github.com/mylogin/avhtml>
+[cpp-httplib](https://github.com/yhirose/cpp-httplib), [avhtml](https://github.com/mylogin/avhtml), [CxxUrl](https://github.com/mylogin/CxxUrl)
 
-<https://github.com/mylogin/CxxUrl>
+### HTTPS Support
 
-<https://github.com/yhirose/cpp-httplib>
+HTTPS support is implemented using the OpenSSL library and is enabled by default. To use HTTPS add/remove `CPPHTTPLIB_OPENSSL_SUPPORT` macro from sitemap.h and run `make`. `libcrypto`, `libssl` (`libcrypt32`, `libcryptui` on Windows) should be available. See HTTPS options below.
 
 ## Options
 
@@ -108,61 +109,6 @@ Example 2:
 
 `filter ext exclude jpg` skip url if it has a file and its extension is jpg
 
-### Logs
-
-All log files are written in CSV format, the file name is the same as the parameter name without the log_ prefix.
-
-Columns description:
-
-| Column | Description |
-|-|-|
-| found | URL found on the page as is |
-| url | Handled URL with all parts (scheme, host etc.) or URL chain in case of redirects |
-| status_code | HTTP response status code |
-| parent | Page on which url was found |
-| reason | Reason of error |
-| time | HTTP response time |
-| is_html | Is page content is html |
-| try_cnt | Number of retries if the request fails |
-| redirect_cnt | Number of redirects for a given URL |
-| charset | Charset of the page |
-
-#### log_error_reply
-
-Urls with status_code != Succees and status_code != Redirection.
-
-Columns: `status_code,url,parent`
-
-#### log_redirect
-
-Urls that returned redirect status.
-
-Columns: `url,parent`
-
-#### log_parse_url
-
-Urls with bad format.
-
-Columns: `reason,found,base_href,parent`
-
-#### log_ignored_url
-
-Urls that did not pass custom filters.
-
-Columns: `found,parent`
-
-#### log_info
-
-Verbose log.
-
-Columns: `time,is_html,try_cnt,redirect_cnt,charset,found,url,parent`
-
-#### log_other
-
-Other errors and exceptions.
-
-Columns: `reason`
-
 ### Sitemap XML
 
 #### xml_name
@@ -198,3 +144,78 @@ Examples:
 `xml_tag priority 0.5 ^https?:\/\/www\.sitename\.xx\/about\/` value for specific url
 
 `xml_tag priority 0.4 ^https?:\/\/www\.sitename\.xx\/contacts\/` value for specific url
+
+### Logs
+
+All log files are written in CSV format, the file name is the same as the parameter name without the log_ prefix.
+
+Columns description:
+
+| Column | Description |
+|-|-|
+| found | URL found on the page as is |
+| url | Handled URL with all parts (scheme, host etc.) or URL chain in case of redirects |
+| parent | Page on which url was found |
+| reason | Reason of error |
+| time | HTTP response time |
+| is_html | Is page content is html |
+| try_cnt | Number of retries if the request fails |
+| redirect_cnt | Number of redirects for a given URL |
+| charset | Charset of the page |
+
+#### log_error_reply
+
+Urls with status_code != Succees and status_code != Redirection, certificate errors.
+
+Columns: `reason,url,parent`
+
+#### log_redirect
+
+Urls that returned redirect status.
+
+Columns: `url,parent`
+
+#### log_parse_url
+
+Urls with bad format.
+
+Columns: `reason,found,base_href,parent`
+
+#### log_ignored_url
+
+Urls that did not pass custom filters.
+
+Columns: `found,parent`
+
+#### log_info
+
+Verbose log.
+
+Columns: `time,is_html,try_cnt,redirect_cnt,charset,found,url,parent`
+
+#### log_other
+
+Other errors and exceptions.
+
+Columns: `reason`
+
+### HTTPS options
+
+#### cert_verification
+
+Enables server certificate verification. If neither `ca_cert_file_path` nor `ca_cert_dir_path` is defined, the default locations will be used to load trusted CA certificates. If an error occurs during the verification process, the last error is logged to the error_reply log. Disabled by default.
+
+#### ca_cert_file_path
+
+Points to a file of CA certificates in PEM format. The file can contain several CA certificates identified by
+```
+ -----BEGIN CERTIFICATE-----
+ ... (CA certificate in base64 encoding) ...
+ -----END CERTIFICATE-----
+```
+sequences. Before, between, and after the certificates text is allowed which can be used e.g. for descriptions of the certificates. (Taken from OpenSSL man).
+
+
+#### ca_cert_dir_path
+
+Points to a directory containing CA certificates in PEM format. The files each contain one CA certificate. The files are looked up by the CA subject name hash value, which must hence be available. If more than one CA certificate with the same name hash value exist, the extension must be different (e.g. 9d66eef0.0, 9d66eef0.1 etc). The search is performed in the ordering of the extension number, regardless of other properties of the certificates. Use the c_rehash utility to create the necessary links. (Taken from OpenSSL man). If `ca_cert_file_path` is defined, this option will be ignored.
