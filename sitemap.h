@@ -119,6 +119,7 @@ public:
 	std::string dir;
 	std::string param_url;
 	std::string xml_name;
+	std::string xml_index_name;
 	std::string cell_delim = ",";
 	std::string in_cell_delim = "|";
 	bool log_redirect = false;

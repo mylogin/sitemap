@@ -209,6 +209,8 @@ void Main::import_param(const std::string& file) {
 				url = param_url;
 			} else if(res[0] == "xml_name") {
 				xml_name = res[1];
+			} else if(res[0] == "xml_index_name") {
+				xml_index_name = res[1];
 			} else if(res[0] == "thread") {
 				int index = std::stoi(res[1]);
 				if(index >= 1 && index <= 10) {
@@ -271,6 +273,9 @@ void Main::import_param(const std::string& file) {
 	std::regex reg("http(s)?:\\/\\/(www\\.)?[\\w-]+\\.[\\w-]+.*", std::regex_constants::ECMAScript | std::regex_constants::icase);
 	if(!std::regex_match(param_url, reg)) {
 		throw std::runtime_error("Parameter 'url' is not valid");
+	}
+	if(param_url.back() == '/') {
+		param_url.pop_back();
 	}
 }
 
@@ -619,7 +624,7 @@ void Main::finished() {
 		writer.write_start_doc();
 		writer.write_start_el("urlset");
 		writer.write_attr("xmlns", "http://www.sitemaps.org/schemas/sitemap/0.9");
-		for(auto it = url_all.begin() ; it != url_all.end(); ++it) {
+		for(auto it = url_all.begin(); it != url_all.end(); ++it) {
 			if(!it->second.is_html) {
 				continue;
 			}
@@ -672,6 +677,23 @@ void Main::finished() {
 		writer.write_end_doc();
 		writer.flush();
 		out.close();
+		if(!xml_index_name.empty()) {
+			out.open(dir + "/" + xml_index_name + ".xml", std::ofstream::out | std::ofstream::binary | std::ofstream::trunc);
+			writer.write_start_doc();
+			writer.write_start_el("sitemapindex");
+			writer.write_attr("xmlns", "http://www.sitemaps.org/schemas/sitemap/0.9");
+			writer.write_start_el("sitemap");
+			for(j = 1; j <= i; j++) {
+				writer.write_start_el("loc");
+				writer.write_str(param_url + "/" + xml_name + std::to_string(j) + ".xml");
+				writer.write_end_el();
+			}
+			writer.write_end_el();
+			writer.write_end_el();
+			writer.write_end_doc();
+			writer.flush();
+			out.close();
+		}
 	}
 }
 

@@ -13,7 +13,7 @@ All dependencies are placed in the 'deps' folder as submodules.
 
 [cpp-httplib](https://github.com/yhirose/cpp-httplib), [avhtml](https://github.com/mylogin/avhtml), [CxxUrl](https://github.com/mylogin/CxxUrl)
 
-### HTTPS Support
+#### HTTPS Support
 
 HTTPS support is implemented using the OpenSSL library and is enabled by default. To use HTTPS add/remove `CPPHTTPLIB_OPENSSL_SUPPORT` macro from sitemap.h and run `make`. `libcrypto`, `libssl` (`libcrypt32`, `libcryptui` on Windows) should be available. See HTTPS options below.
 
@@ -113,11 +113,19 @@ Example 2:
 
 #### xml_name
 
-XML file name. File number will be added at the end of the file name as there may be many files in case of exceeding the limits. If this option is not set, XML will not be generated.
+Sitemap file name. File number will be added at the end of the file name as there may be many files in case of exceeding the limits. If this option is not set, XML will not be generated.
 
 Example: `xml_name sitemap_all_main`
 
 Output files: *sitemap_all_main1.xml, sitemap_all_main2.xml...*
+
+#### xml_index_name
+
+If set, a Sitemap index file will be created containing a list of all generated Sitemap files. Full path of each Sitemap file will consist of parameter `url` + parameter `xml_name`.
+
+Example: `xml_index_name sitemap_index`
+
+Output file: *sitemap_index.xml*
 
 #### xml_entry_limit (default: 1000000)
 
