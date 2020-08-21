@@ -13,7 +13,7 @@ All dependencies are placed in the 'deps' folder as submodules.
 
 [cpp-httplib](https://github.com/yhirose/cpp-httplib), [avhtml](https://github.com/mylogin/avhtml), [CxxUrl](https://github.com/mylogin/CxxUrl)
 
-#### HTTPS Support
+## HTTPS Support
 
 HTTPS support is implemented using the OpenSSL library and is enabled by default. To use HTTPS add/remove `CPPHTTPLIB_OPENSSL_SUPPORT` macro from sitemap.h and run `make`. `libcrypto`, `libssl` (`libcrypt32`, `libcryptui` on Windows) should be available. See HTTPS options below.
 

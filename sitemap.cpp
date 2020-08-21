@@ -270,8 +270,11 @@ void Main::import_param(const std::string& file) {
 	if(dir.empty()) {
 		throw std::runtime_error("Parameter 'dir' is empty");
 	}
-	std::regex reg("http(s)?:\\/\\/(www\\.)?[\\w-]+\\.[\\w-]+.*", std::regex_constants::ECMAScript | std::regex_constants::icase);
-	if(!std::regex_match(param_url, reg)) {
+	try {
+		if(url.ip_version() != 0 || url.scheme().empty()) {
+			throw std::runtime_error("Parameter 'url' is not valid");
+		}
+	} catch (Url::parse_error& e) {
 		throw std::runtime_error("Parameter 'url' is not valid");
 	}
 	if(param_url.back() == '/') {
@@ -473,7 +476,7 @@ bool Main::handle_url(Url_struct& url_new, const std::string& found, const std::
 	try {
 
 		std::string dest(found);
-		dest = std::regex_replace(dest, std::regex("^\\s+|\\s+$"), std::string(""));
+		dest = std::regex_replace(dest, std::regex(R"(^\s+|\s+$)"), std::string(""));
 
 		// ----- adjust & base filter
 		Url d(dest);
