@@ -15,6 +15,7 @@
 #include <condition_variable>
 #include <string>
 #include <iostream>
+#include <functional>
 
 #include "deps/url/url.hpp"
 #include "deps/http/httplib.h"
@@ -86,8 +87,7 @@ struct Xml_tag {
 	std::string def;
 };
 
-class Url_struct {
-public:
+struct Url_struct {
 	std::string found;					// url found on page, in case of redirect first found
 	std::vector<std::string> remote;	// resolved urls, all redirect chain
 	std::string parent;					// taken from remote
@@ -95,15 +95,16 @@ public:
 	std::string charset;
 	std::string path;
 	std::string host;
+	std::string base_href;
 	bool is_html = false;
 	int id = 0;
 	double time = 0;
 	int try_cnt = 0;
 	bool ssl = false;
+	bool handle = false;
 };
 
-class Filter {
-public:
+struct Filter {
 	int type;
 	int dir;
 	std::string val;
@@ -118,7 +119,7 @@ public:
 	// setting
 	std::string dir;
 	std::string param_url;
-	std::string xml_name;
+	std::string xml_name = "sitemap";
 	std::string xml_index_name;
 	std::string cell_delim = ",";
 	std::string in_cell_delim = "|";
@@ -132,14 +133,16 @@ public:
 	bool param_subdomain = false;
 	int param_sleep = 0;
 	int thread_cnt = 1;
-	int redirect_limit = 5;
-	int url_limit = 0;
+	size_t redirect_limit = 5;
+	size_t url_limit = 0;
 	int xml_filemb_lim = 1;
 	int xml_entry_lim = 1000000;
 	int try_limit = 3;
 	bool cert_verification = false;
 	std::string ca_cert_file_path;
 	std::string ca_cert_dir_path;
+	bool link_check = false;
+	bool sitemap = false;
 
 	bool running = true;
 	std::vector<Filter> param_filter;
@@ -153,7 +156,7 @@ public:
 	void import_param(const std::string&);
 	void start();
 	void finished();
-	bool handle_url(Url_struct&, const std::string&, const std::string&, const std::string&);
+	bool handle_url(Url_struct&);
 	bool set_url(Url_struct&);
 	void redirect_url(const std::string&, const Url_struct&);
 	void try_again(const std::string&);
@@ -178,5 +181,59 @@ public:
 	std::shared_ptr<httplib::Response> reply;
 };
 
+class Handler {
+public:
+	static bool tag_a(Url_struct&, Thread* t = nullptr);
+	static bool attr_srcset(Url_struct&, Thread* t = nullptr);
+	static bool def(Url_struct&, Thread* t = nullptr);
+};
+
+struct Attr {
+	std::string name;
+	std::function<bool(Url_struct&, Thread*)> pre;
+};
+
+struct Tag {
+	std::string name;
+	std::vector<Attr> attr;
+};
+
+std::vector<Tag> Tags_main{
+	{"a", {{"href", Handler::tag_a}}},
+	{"area", {{"href", Handler::tag_a}}}
+};
+
+std::vector<Tag> Tags_other{
+	{"a", {{"ping"}}},
+	{"area", {{"ping"}}},
+	{"audio", {{"src"}}},
+	{"body", {{"background"}}},
+	{"frame", {{"src"}, {"longdesc"}}},
+	{"iframe", {{"src"}, {"longdesc"}}},
+	{"img", {{"src"}, {"srcset", Handler::attr_srcset}, {"longdesc"}}},
+	{"input", {{"src"}, {"formaction"}}},
+	{"meta[http-equiv='refresh']", {{"content"}}},
+	{"source", {{"src"}, {"srcset", Handler::attr_srcset}}},
+	{"table", {{"background"}}},
+	{"tbody", {{"background"}}},
+	{"td", {{"background"}}},
+	{"tfoot", {{"background"}}},
+	{"th", {{"background"}}},
+	{"thead", {{"background"}}},
+	{"tr", {{"background"}}},
+	{"track", {{"src"}}},
+	{"video", {{"poster"}, {"src"}}},
+	{"button", {{"formaction"}}},
+	{"form", {{"action"}}},
+	{"link", {{"href"}}},
+	{"script", {{"src"}}},
+	{"blockquote", {{"cite"}}},
+	{"del", {{"cite"}}},
+	{"head", {{"profile"}}},
+	{"html", {{"manifest"}}},
+	{"ins", {{"cite"}}},
+	{"q", {{"cite"}}},
+	{"*", {{"itemtype"}}}
+};
 
 #endif // SITEMAP_H
