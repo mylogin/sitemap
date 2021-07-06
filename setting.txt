@@ -1,5 +1,6 @@
 url https://www.sitename.xx/
 thread 3
+sitemap
 xml_name sitemap_all_main
 dir /var/www/sitename/sitemap
 filter regexp exclude ^https?:\/\/www\.sitename\.xx\/(articles|news)\/p\d+\/

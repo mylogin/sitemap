@@ -24,11 +24,17 @@ endif
 
 all: $(EXECUTABLE)
 
-$(EXECUTABLE): url.o html.o sitemap.o
+$(EXECUTABLE): Uri.o CharacterSet.o PercentEncodedCharacterDecoder.o html.o sitemap.o
 	$(CXX) $(CXX_FLAGS) -o $@ $^ $(LIBRARIES)
 
-url.o: deps/url/url.cpp deps/url/url.hpp deps/url/string.hpp
+CharacterSet.o: deps/uri/src/CharacterSet.cpp deps/uri/src/CharacterSet.hpp
 	$(CXX) $(CXX_FLAGS) -c -o $@ $<
+
+PercentEncodedCharacterDecoder.o: deps/uri/src/PercentEncodedCharacterDecoder.cpp deps/uri/src/PercentEncodedCharacterDecoder.hpp deps/uri/src/CharacterSet.hpp
+	$(CXX) $(CXX_FLAGS) -c -o $@ $<
+
+Uri.o: deps/uri/src/Uri.cpp deps/uri/include/Uri/Uri.hpp deps/uri/src/PercentEncodedCharacterDecoder.hpp deps/uri/src/CharacterSet.hpp
+	$(CXX) $(CXX_FLAGS) -Ideps/uri/include -c -o $@ $<
 
 html.o: deps/html/src/html5.cpp deps/html/include/html5.hpp
 	$(CXX) $(CXX_FLAGS) -Ideps/html/include -c -o $@ $<

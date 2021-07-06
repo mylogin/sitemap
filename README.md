@@ -137,7 +137,7 @@ Columns: `url,parent`
 
 #### log_parse_url
 Urls with bad format.  
-Columns: `reason,found,base_href,parent`
+Columns: `found,parent`
 
 #### log_ignored_url
 Urls that did not pass custom filters.  

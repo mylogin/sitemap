@@ -4,6 +4,6 @@
 [submodule "deps/html"]
 	path = deps/html
 	url = https://github.com/mylogin/avhtml.git
-[submodule "deps/url"]
-	path = deps/url
-	url = https://github.com/mylogin/CxxUrl.git
+[submodule "deps/uri"]
+	path = deps/uri
+	url = https://github.com/mylogin/Uri

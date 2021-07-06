@@ -16,8 +16,9 @@
 #include <string>
 #include <iostream>
 #include <functional>
+#include <algorithm>
 
-#include "deps/url/url.hpp"
+#include "deps/uri/include/Uri/Uri.hpp"
 #include "deps/http/httplib.h"
 #include "deps/html/include/html5.hpp"
 
@@ -147,7 +148,7 @@ public:
 	bool running = true;
 	std::vector<Filter> param_filter;
 	std::multimap<std::string, Xml_tag> param_xml_tag;
-	Url url;
+	Uri::Uri uri;
 	std::condition_variable cond;
 	std::mutex mutex;
 	std::mutex mutex_log;
@@ -156,14 +157,13 @@ public:
 	void import_param(const std::string&);
 	void start();
 	void finished();
-	bool handle_url(Url_struct&);
+	bool handle_url(Url_struct&, bool filter = true);
 	bool set_url(Url_struct&);
 	void redirect_url(const std::string&, const Url_struct&);
 	void try_again(const std::string&);
 	void update_url(const Url_struct&);
 	bool get_url(Thread*);
-	std::string url_path(const Url&);
-	std::string url_normalize(const Url&);
+	std::string uri_normalize(const Uri::Uri&);
 	void log(const std::string&, const std::string&);
 	void debug(const std::string&);
 	std::queue<Url_struct> url_queue;
