@@ -1,9 +1,6 @@
 [submodule "deps/http"]
 	path = deps/http
 	url = https://github.com/yhirose/cpp-httplib.git
-[submodule "deps/html"]
-	path = deps/html
-	url = https://github.com/mylogin/avhtml.git
 [submodule "deps/uri"]
 	path = deps/uri
 	url = https://github.com/mylogin/Uri
