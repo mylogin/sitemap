@@ -7,3 +7,6 @@
 [submodule "deps/uri"]
 	path = deps/uri
 	url = https://github.com/mylogin/Uri
+[submodule "deps/parser"]
+	path = deps/parser
+	url = https://github.com/mylogin/cpphtml

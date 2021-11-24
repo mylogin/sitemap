@@ -20,7 +20,7 @@
 
 #include "deps/uri/include/Uri/Uri.hpp"
 #include "deps/http/httplib.h"
-#include "deps/html/include/html5.hpp"
+#include "deps/parser/html.hpp"
 
 class Timer {
 public:
@@ -41,6 +41,7 @@ class Utils {
 public:
 	static std::vector<std::string> split(const std::string&, char, bool ignore_ws = true);
 	static std::string join(const std::vector<std::string>&, char);
+	static std::string str_tolower(std::string);
 };
 
 class XML_writer {
@@ -172,68 +173,36 @@ public:
 
 class Thread {
 public:
+	Thread(int id, Main* main) : id(id), main(main) {}
 	bool suspend = false;
 	int id;
 	Main* main;
 	Url_struct m_url;
+	html::parser p;
 	void load();
 	void http_finished();
+	bool set_url(const std::string&, bool);
+	void start();
+	void join();
 	std::shared_ptr<httplib::Response> reply;
+	std::unique_ptr<std::thread> uthread = nullptr;
 };
 
 class Handler {
 public:
-	static bool tag_a(Url_struct&, Thread* t = nullptr);
-	static bool attr_srcset(Url_struct&, Thread* t = nullptr);
-	static bool def(Url_struct&, Thread* t = nullptr);
+	static bool attr_charset(html::node&, std::string&, Thread* t = nullptr);
+	static bool attr_refresh(html::node&, std::string&, Thread* t = nullptr);
+	static bool attr_srcset(html::node&, std::string&, Thread* t = nullptr);
 };
 
 struct Attr {
 	std::string name;
-	std::function<bool(Url_struct&, Thread*)> pre;
+	std::function<bool(html::node&, std::string&, Thread*)> pre;
 };
 
 struct Tag {
 	std::string name;
 	std::vector<Attr> attr;
-};
-
-std::vector<Tag> Tags_main{
-	{"a", {{"href", Handler::tag_a}}},
-	{"area", {{"href", Handler::tag_a}}}
-};
-
-std::vector<Tag> Tags_other{
-	{"a", {{"ping"}}},
-	{"area", {{"ping"}}},
-	{"audio", {{"src"}}},
-	{"body", {{"background"}}},
-	{"frame", {{"src"}, {"longdesc"}}},
-	{"iframe", {{"src"}, {"longdesc"}}},
-	{"img", {{"src"}, {"srcset", Handler::attr_srcset}, {"longdesc"}}},
-	{"input", {{"src"}, {"formaction"}}},
-	{"meta[http-equiv='refresh']", {{"content"}}},
-	{"source", {{"src"}, {"srcset", Handler::attr_srcset}}},
-	{"table", {{"background"}}},
-	{"tbody", {{"background"}}},
-	{"td", {{"background"}}},
-	{"tfoot", {{"background"}}},
-	{"th", {{"background"}}},
-	{"thead", {{"background"}}},
-	{"tr", {{"background"}}},
-	{"track", {{"src"}}},
-	{"video", {{"poster"}, {"src"}}},
-	{"button", {{"formaction"}}},
-	{"form", {{"action"}}},
-	{"link", {{"href"}}},
-	{"script", {{"src"}}},
-	{"blockquote", {{"cite"}}},
-	{"del", {{"cite"}}},
-	{"head", {{"profile"}}},
-	{"html", {{"manifest"}}},
-	{"ins", {{"cite"}}},
-	{"q", {{"cite"}}},
-	{"*", {{"itemtype"}}}
 };
 
 #endif // SITEMAP_H

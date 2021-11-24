@@ -2,6 +2,42 @@
 
 std::exception_ptr exc_ptr = nullptr;
 
+std::vector<std::string> Tags_main{"a", "area"};
+
+std::vector<Tag> Tags_other{
+	{"meta", {{"content", Handler::attr_charset}}},
+	{"meta", {{"content", Handler::attr_refresh}}},
+	{"a", {{"ping"}}},
+	{"area", {{"ping"}}},
+	{"audio", {{"src"}}},
+	{"body", {{"background"}}},
+	{"frame", {{"src"}, {"longdesc"}}},
+	{"iframe", {{"src"}, {"longdesc"}}},
+	{"img", {{"src"}, {"srcset", Handler::attr_srcset}, {"longdesc"}}},
+	{"input", {{"src"}, {"formaction"}}},
+	{"source", {{"src"}, {"srcset", Handler::attr_srcset}}},
+	{"table", {{"background"}}},
+	{"tbody", {{"background"}}},
+	{"td", {{"background"}}},
+	{"tfoot", {{"background"}}},
+	{"th", {{"background"}}},
+	{"thead", {{"background"}}},
+	{"tr", {{"background"}}},
+	{"track", {{"src"}}},
+	{"video", {{"poster"}, {"src"}}},
+	{"button", {{"formaction"}}},
+	{"form", {{"action"}}},
+	{"link", {{"href"}}},
+	{"script", {{"src"}}},
+	{"blockquote", {{"cite"}}},
+	{"del", {{"cite"}}},
+	{"head", {{"profile"}}},
+	{"html", {{"manifest"}}},
+	{"ins", {{"cite"}}},
+	{"q", {{"cite"}}},
+	{"*", {{"itemtype"}}}
+};
+
 std::vector<std::string> Utils::split(const std::string& str, char ch, bool ignore_ws) {
 	std::string elem;
 	std::stringstream si(str);
@@ -14,6 +50,7 @@ std::vector<std::string> Utils::split(const std::string& str, char ch, bool igno
 	}
 	return elems;
 }
+
 std::string Utils::join(const std::vector<std::string>& v, char ch) {
 	std::stringstream ss;
 	for(size_t i = 0; i < v.size(); ++i) {
@@ -23,6 +60,11 @@ std::string Utils::join(const std::vector<std::string>& v, char ch) {
 		ss << v[i];
 	}
 	return ss.str();
+}
+
+std::string Utils::str_tolower(std::string s) {
+	std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return std::tolower(c); });
+	return s;
 }
 
 XML_writer::XML_writer(std::ostream& stream) : output(stream) {}
@@ -323,12 +365,11 @@ void Main::start() {
 	});
 	t.detach();
 
-	std::vector<std::thread> threads;
-	for(int i = 1; i <= thread_cnt; i++) {
-		Thread worker;
-		worker.main = this;
-		worker.id = i;
-		threads.emplace_back(&Thread::load, worker);
+	std::vector<Thread> threads;
+	threads.reserve(thread_cnt);
+	for(int i = 0; i < thread_cnt; i++) {
+		threads.emplace_back(i + 1, this);
+		threads[i].start();
 	}
 	for (auto &thread : threads) {
 		thread.join();
@@ -675,6 +716,53 @@ void Main::finished() {
 	}
 }
 
+void Thread::start() {
+	p.set_callback([this](html::node& n) {
+		if(n.type_node != html::node_t::tag) {
+			return;
+		}
+		if(n.tag_name == "base") {
+			auto href = n.get_attr("href");
+			if(!href.empty()) {
+				m_url.base_href = href;
+			}
+			return;
+		}
+		if(std::find(Tags_main.begin(), Tags_main.end(), n.tag_name) != Tags_main.end()) {
+			auto href = n.get_attr("href");
+			if(!href.empty()) {
+				set_url(href, true);
+			}
+			return;
+		}
+		if(main->link_check) {
+			for(auto& tag : Tags_other) {
+				if(n.tag_name == tag.name) {
+					for(auto& attr : tag.attr) {
+						auto href = n.get_attr(attr.name);
+						if(href.empty()) {
+							continue;
+						}
+						if(attr.pre && !attr.pre(n, href, this)) {
+							continue;
+						}
+						set_url(href, false);
+					}
+					return;
+				}
+			}
+		}
+	});
+	uthread.reset(new std::thread(&Thread::load, this));
+}
+
+void Thread::join() {
+	if (uthread != nullptr) {
+		uthread->join();
+		uthread = nullptr;
+	}
+}
+
 void Thread::load() {
 	try {
 		{
@@ -801,83 +889,63 @@ void Thread::http_finished() {
 	if(pos != std::string::npos) {
 		m_url.charset = content_type.substr(pos + 8);
 	}
-	// parse
-	html::dom h;
-	h.append_partial_html(reply->body);
-	// base href
-	auto tag_base = h["base[href]"].get_children();
 	m_url.base_href = m_url.remote.back();
-	if(!tag_base.empty()) {
-		m_url.base_href = tag_base[0]->get_attr("href");
-	}
-	// charset from meta
-	if (m_url.charset.empty()) {
-		auto tag_meta = h["meta[http-equiv='Content-Type']"].get_children();
-		if(!tag_meta.empty()) {
-			auto content = tag_meta[0]->get_attr("content");
-			if(!content.empty()) {
-				auto pos = content.find("charset=");
-				if(pos != std::string::npos) {
-					m_url.charset = content.substr(pos + 8);
-				}
-			}
-		}
-	}
-	for(auto tags : std::vector<std::vector<Tag>*>{&Tags_main, &Tags_other}) {
-		for(auto& tag : *tags) {
-			for(auto dom : h[tag.name].get_children()) {
-				for(auto& attr : tag.attr) {
-					auto href = dom->get_attr(attr.name);
-					if(href.empty()) {
-						continue;
-					}
-					Url_struct new_url;
-					new_url.found = href;
-					new_url.parent = m_url.remote.back();
-					new_url.base_href = m_url.base_href;
-					if(attr.pre && !attr.pre(new_url, this)) {
-						continue;
-					}
-					Handler::def(new_url, this);
-				}
-			}
-		}
-		if(!main->link_check) {
-			break;
-		}
-	}
+	p.parse(reply->body);
 	main->update_url(m_url);
 }
 
-bool Handler::tag_a(Url_struct& s, Thread* t) {
-	s.handle = true;
+bool Thread::set_url(const std::string& href, bool handle) {
+	Url_struct new_url;
+	new_url.found = href;
+	new_url.parent = m_url.remote.back();
+	new_url.base_href = m_url.base_href;
+	new_url.handle = handle;
+	if(main->handle_url(new_url)) {
+		if(!main->set_url(new_url)) {
+			return false;
+		}
+	} else if(main->log_ignored_url) {
+		CSV_Writer csv(main->cell_delim);
+		csv << new_url.found << new_url.parent;
+		main->log("ignored_url", csv.to_string());
+	}
 	return true;
 }
 
-bool Handler::attr_srcset(Url_struct& s, Thread* t) {
-	auto src_all = Utils::split(s.found, ',');
-	for (auto v : src_all) {
-		auto src = Utils::split(v, ' ');
-		if(!src.empty()) {
-			Url_struct new_url(s);
-			new_url.found = src[0];
-			Handler::def(new_url, t);
+bool Handler::attr_charset(html::node& n, std::string& href, Thread* t) {
+	if (t->m_url.charset.empty()) {
+		if(Utils::str_tolower(n.get_attr("http-equiv")) == "content-type") {
+			auto pos = href.find("charset=");
+			if(pos != std::string::npos) {
+				t->m_url.charset = href.substr(pos + 8);
+			}
 		}
 	}
 	return false;
 }
 
-bool Handler::def(Url_struct& new_url, Thread* t) {
-	if(t->main->handle_url(new_url)) {
-		if(!t->main->set_url(new_url)) {
-			return false;
+bool Handler::attr_refresh(html::node& n, std::string& href, Thread* t) {
+	if (t->m_url.charset.empty()) {
+		if(Utils::str_tolower(n.get_attr("http-equiv")) == "refresh") {
+			std::regex e("[\\d\\s]+;\\s*url\\s*=\\s*(.+)", std::regex_constants::ECMAScript | std::regex_constants::icase);
+			std::smatch m;
+			if(std::regex_match(href, m, e)) {
+				t->set_url(m[1], false);
+			}
 		}
-	} else if(t->main->log_ignored_url) {
-		CSV_Writer csv(t->main->cell_delim);
-		csv << new_url.found << new_url.parent;
-		t->main->log("ignored_url", csv.to_string());
 	}
-	return true;
+	return false;
+}
+
+bool Handler::attr_srcset(html::node& n, std::string& href, Thread* t) {
+	auto src_all = Utils::split(href, ',');
+	for (auto v : src_all) {
+		auto src = Utils::split(v, ' ');
+		if(!src.empty()) {
+			t->set_url(src[0], false);
+		}
+	}
+	return false;
 }
 
 int main(int argc, char *argv[]) {
