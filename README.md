@@ -6,19 +6,23 @@
 	./sitemap setting.txt
 	# type `q` to quit or wait until the program ends
 
-## Dependencies
-All dependencies are placed in the 'deps' folder as submodules.  
-[cpp-httplib](https://github.com/yhirose/cpp-httplib), [avhtml](https://github.com/mylogin/avhtml), [CxxUrl](https://github.com/mylogin/CxxUrl)
-
-## HTTPS Support
-HTTPS support is implemented using the OpenSSL library and is enabled by default. To use HTTPS add/remove `CPPHTTPLIB_OPENSSL_SUPPORT` macro from sitemap.h and run `make`. `libcrypto`, `libssl` (`libcrypt32`, `libcryptui` on Windows) should be available. See HTTPS options below.
+## Features
+* Multi-thread support.
+* URL filtering with regular expressions.
+* Support for many HTML elements and attributes.
+* Support for relative URLs with `<base href>`.
+* Create sitemap and sitemap index files.
+* Automatically creates new sitemap files if limits is reached.
+* Configurable retries count and timeouts.
+* HTTPS Support.
+* Detailed information logs.
 
 ## Options
 
 ### Base options
 
 #### link_check
-By default, the program scans HTML documents and recursively handles each clickable link (`<a>`, `<area>` tags). Use this option to check other tags. All tags are listed in sitemap.h (`Tags_main` and` Tags_other`).  
+By default, the program scans HTML documents and recursively handles each clickable link (`<a>`, `<area>` tags). Use this option to check other tags. All tags are listed in sitemap.cpp `Tags_other`.
 Example: `link_check`
 
 #### sitemap
@@ -69,7 +73,7 @@ Example: `in_cell_delim ~`
 Will write to standard output information about what the program does.  
 Example: `debug`
 
-### Filters
+### URL filtering.
 You can tell the crawler not to visit certain urls by using the filter options.  
 Format: `filter (regexp|get|ext) (include|exclude) value`
 
@@ -152,6 +156,7 @@ Other errors and exceptions.
 Columns: `reason`
 
 ### HTTPS options
+HTTPS support is implemented using the OpenSSL library and is enabled by default. To use HTTPS add/remove `CPPHTTPLIB_OPENSSL_SUPPORT` macro from sitemap.h and run `make`. `libcrypto`, `libssl` (`libcrypt32`, `libcryptui` on Windows) should be available. See HTTPS options below.
 
 #### cert_verification
 Enables server certificate verification. If neither `ca_cert_file_path` nor `ca_cert_dir_path` is defined, the default locations will be used to load trusted CA certificates. If an error occurs during the verification process, the last error is logged to the error_reply log. Disabled by default.
