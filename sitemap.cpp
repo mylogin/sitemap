@@ -234,8 +234,10 @@ void Main::import_param(const std::string& file) {
 				log_error_reply = true;
 			} else if(res[0] == "log_ignored_url") {
 				log_ignored_url = true;
-			} else if(res[0] == "log_parse_url") {
-				log_parse_url = true;
+			} else if(res[0] == "log_skipped_url") {
+				log_skipped_url = true;
+			} else if(res[0] == "log_bad_url") {
+				log_bad_url = true;
 			} else if(res[0] == "log_other") {
 				log_other = true;
 			} else if(res[0] == "log_info") {
@@ -288,17 +290,29 @@ void Main::import_param(const std::string& file) {
 			Filter f;
 			if(res[1] == "regexp") {
 				f.type = Filter::type_regexp;
+				try {
+					f.reg = std::regex(res[3], std::regex_constants::ECMAScript | std::regex_constants::icase);
+				} catch(std::exception& e) {
+					throw std::runtime_error(std::string("Parameter 'filter regexp' is not valid: ") + e.what());
+				}
 			} else if(res[1] == "get") {
 				f.type = Filter::type_get;
+				f.val = res[3];
 			} else if(res[1] == "ext") {
 				f.type = Filter::type_ext;
+				f.val = res[3];
+			} else {
+				throw std::runtime_error("Parameter 'filter' is not valid");
 			}
 			if(res[2] == "include") {
 				f.dir = Filter::include;
-			} else {
+			} else if(res[2] == "exclude") {
 				f.dir = Filter::exclude;
+			} else if(res[2] == "skip") {
+				f.dir = Filter::skip;
+			} else {
+				throw std::runtime_error("Parameter 'filter' is not valid");
 			}
-			f.val = res[3];
 			param_filter.push_back(f);
 		} else if(res[0] == "xml_tag" && res.size() == 3) {
 			Xml_tag x;
@@ -311,7 +325,6 @@ void Main::import_param(const std::string& file) {
 			}
 		}
 	}
-	infile.close();
 	if(dir.empty()) {
 		throw std::runtime_error("Parameter 'dir' is empty");
 	}
@@ -343,7 +356,7 @@ void Main::start() {
 	Url_struct new_url;
 	new_url.found = param_url;
 	new_url.base_href = param_url;
-	new_url.handle = true;
+	new_url.handle = 1;
 	if(!handle_url(new_url, false)) {
 		throw std::runtime_error("Parameter 'url' is not valid");
 	}
@@ -438,12 +451,16 @@ void Main::update_url(const Url_struct& url) {
 bool Main::get_url(Thread* t) {
 	std::unique_lock<std::mutex> lk(mutex);
 	if (!running) {
+		if(!t->suspend) {
+			t->suspend = true;
+			thread_work--;
+		}
 		debug("thread: " + std::to_string(t->id) + ", state: 'not running', thread cnt: " + std::to_string(thread_work) + ", queue: " + std::to_string(url_queue.size()));
 		return false;
 	}
 	if(url_queue.size()) {
 		if(t->suspend) {
-			t->suspend = 0;
+			t->suspend = false;
 			thread_work++;
 			debug("thread: " + std::to_string(t->id) + ", state: 'revive', thread cnt: " + std::to_string(thread_work) + ", queue: " + std::to_string(url_queue.size()));
 		}
@@ -452,7 +469,7 @@ bool Main::get_url(Thread* t) {
 		return true;
 	}
 	if(!t->suspend) {
-		t->suspend = 1;
+		t->suspend = true;
 		thread_work--;
 		if(thread_work == 0) {
 			debug("thread: " + std::to_string(t->id) + ", state: 'exit', thread cnt: " + std::to_string(thread_work) + ", queue: " + std::to_string(url_queue.size()));
@@ -478,12 +495,9 @@ void Main::debug(const std::string& msg) {
 
 void Main::log(const std::string& file, const std::string& msg) {
 	std::lock_guard<std::mutex> lock(mutex_log);
-	if(dir.empty()) {
-		std::cout << msg << std::endl;
-		return;
-	}
 	std::ofstream ofs (dir + "/" + file + ".log", std::ofstream::out | std::ofstream::app);
 	if (!ofs.is_open()) {
+		std::cout << msg << std::endl;
 		std::cout << "Can not open " << dir + "/" + file + ".log" << std::endl;
 		return;
 	}
@@ -499,7 +513,7 @@ bool Main::handle_url(Url_struct& url_new, bool filter) {
 	Uri::Uri b;
 	Uri::Uri d;
 	if(!b.ParseFromString(url_new.base_href)) {
-		if(log_parse_url) {
+		if(log_bad_url) {
 			CSV_Writer csv(cell_delim);
 			csv << url_new.base_href << url_new.parent;
 			log("parse_url", csv.to_string());
@@ -507,7 +521,7 @@ bool Main::handle_url(Url_struct& url_new, bool filter) {
 		return false;
 	}
 	if(!d.ParseFromString(found)) {
-		if(log_parse_url) {
+		if(log_bad_url) {
 			CSV_Writer csv(cell_delim);
 			csv << url_new.found << url_new.parent;
 			log("parse_url", csv.to_string());
@@ -539,9 +553,8 @@ bool Main::handle_url(Url_struct& url_new, bool filter) {
 			bool res = true;
 			bool check = false;
 			if((*it_filter).type == Filter::type_regexp) {
-				std::regex reg((*it_filter).val, std::regex_constants::ECMAScript | std::regex_constants::icase);
 				check = true;
-				res = std::regex_search(r.GenerateString(), reg);
+				res = std::regex_search(r.GenerateString(), (*it_filter).reg);
 			} else if((*it_filter).type == Filter::type_get) {
 				if(r.HasQuery()) {
 					auto split_query = Utils::split(r.GetQuery(), '&');
@@ -576,6 +589,9 @@ bool Main::handle_url(Url_struct& url_new, bool filter) {
 				}
 				if((*it_filter).dir == Filter::include && !res) {
 					return false;
+				}
+				if((*it_filter).dir == Filter::skip && res) {
+					url_new.handle = 2;
 				}
 			}
 		}
@@ -644,7 +660,10 @@ void Main::finished() {
 		writer.write_start_el("urlset");
 		writer.write_attr("xmlns", "http://www.sitemaps.org/schemas/sitemap/0.9");
 		for(auto it = url_all.begin(); it != url_all.end(); ++it) {
-			if(!it->second.is_html) {
+			if(!it->second.handle) {
+				continue;
+			}
+			if(it->second.handle == 1 && !it->second.is_html) {
 				continue;
 			}
 			int str_size = 0;
@@ -771,6 +790,14 @@ void Thread::load() {
 		}
 		while(main->get_url(this)) {
 			if(suspend) {
+				continue;
+			}
+			if(m_url.handle == 2) {
+				if(main->log_skipped_url) {
+					CSV_Writer csv(main->cell_delim);
+					csv << m_url.found << m_url.parent;
+					main->log("skipped_url", csv.to_string());
+				}
 				continue;
 			}
 			std::shared_ptr<httplib::Client> cli;
@@ -952,8 +979,7 @@ int main(int argc, char *argv[]) {
 	Main c;
 	try {
 		if(argc != 2) {
-			std::cout << "Specify setting file" << std::endl;
-			return 0;
+			throw std::runtime_error("Specify setting file");
 		}
 		c.import_param(argv[1]);
 		c.start();
@@ -966,6 +992,8 @@ int main(int argc, char *argv[]) {
 			CSV_Writer csv(c.cell_delim);
 			csv.add(e.what());
 			c.log("other_error", csv.to_string());
+		} else {
+			std::cout << e.what() << std::endl;
 		}
 	}
 	return 0;

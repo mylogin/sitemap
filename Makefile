@@ -1,5 +1,5 @@
 CXX := g++
-CXX_FLAGS := -Wall -std=c++11 -g
+CXX_FLAGS := -Wall -std=c++11
 EXECUTABLE := sitemap
 PREFIX := /usr/local/bin
 LIBRARIES :=

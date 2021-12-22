@@ -22,7 +22,7 @@
 ### Base options
 
 #### link_check
-By default, the program scans HTML documents and recursively handles each clickable link (`<a>`, `<area>` tags). Use this option to check other tags. All tags are listed in sitemap.cpp `Tags_other`.
+By default, the program scans HTML documents and recursively handles each clickable link (`<a>`, `<area>` tags). Use this option to check other tags. All tags are listed in sitemap.cpp `Tags_other`.  
 Example: `link_check`
 
 #### sitemap
@@ -74,18 +74,21 @@ Will write to standard output information about what the program does.
 Example: `debug`
 
 ### URL filtering.
-You can tell the crawler not to visit certain urls by using the filter options.  
-Format: `filter (regexp|get|ext) (include|exclude) value`
+Format: `filter (regexp|get|ext) (exclude|include|skip) value`
 
-Example 1:  
-`filter ext include php` skip url if it has a file and its extension is not php  
-`filter get exclude sort` skip url if it has a query parameter sort  
-`filter regexp exclude ^https?:\/\/www\.sitename\.xx\/(articles|news)\/id\d+\/` skip url if it matches regexp
+#### exclude (do not visit certain url)
+`filter regexp exclude ^https?:\/\/www\.sitename\.xx\/(articles|news)\/id\d+` - not visit url if it matches regexp  
+`filter get exclude sort` - not visit url if it has a `sort` query parameter  
+`filter ext exclude png` - not visit url if it has a file and its extension is `.png`
 
-Example 2:  
-`filter regexp include ^https?:\/\/www\.sitename\.xx\/news\/` skip url if it does not match regexp  
-`filter ext exclude png` skip url if it has a file and its extension is png  
-`filter ext exclude jpg` skip url if it has a file and its extension is jpg
+#### include (visit certain urls and skip the rest)
+`filter regexp include ^https?:\/\/www\.sitename\.xx\/(articles|news)\/id\d+` visit url if it matches regexp, and not vizit others  
+`filter get include sort` - visit url if it has a `sort` query parameter and not visit other urls that have query params  
+`filter ext include php` - visit url if it has a file and its extension is `.php` and not visit other urls that have a file
+
+#### skip (do not visit url but include it in the result)
+`filter regexp skip \/news\/id\d+\/?$` - not visit url if it matches regexp but add it to result (for sites with a large number of similar urls)  
+`get` and `ext` same as above.
 
 ### Sitemap XML
 
@@ -139,7 +142,11 @@ Columns: `reason,url,parent`
 Urls that returned redirect status.  
 Columns: `url,parent`
 
-#### log_parse_url
+#### log_bad_url
+Urls with bad format.  
+Columns: `found,parent`
+
+#### log_no_parse
 Urls with bad format.  
 Columns: `found,parent`
 
@@ -147,19 +154,24 @@ Columns: `found,parent`
 Urls that did not pass custom filters.  
 Columns: `found,parent`
 
+#### log_skipped_url
+Urls whose content is not requested.  
+Columns: `found,parent`
+
 #### log_info
 Verbose log.  
 Columns: `time,is_html,try_cnt,redirect_cnt,charset,found,url,parent`
 
 #### log_other
-Other errors and exceptions.
+Other errors and exceptions.  
 Columns: `reason`
 
 ### HTTPS options
 HTTPS support is implemented using the OpenSSL library and is enabled by default. To use HTTPS add/remove `CPPHTTPLIB_OPENSSL_SUPPORT` macro from sitemap.h and run `make`. `libcrypto`, `libssl` (`libcrypt32`, `libcryptui` on Windows) should be available. See HTTPS options below.
 
 #### cert_verification
-Enables server certificate verification. If neither `ca_cert_file_path` nor `ca_cert_dir_path` is defined, the default locations will be used to load trusted CA certificates. If an error occurs during the verification process, the last error is logged to the error_reply log. Disabled by default.
+Enables server certificate verification. If neither `ca_cert_file_path` nor `ca_cert_dir_path` is defined, the default locations will be used to load trusted CA certificates. If an error occurs during the verification process, the last error is logged to the error_reply log. Disabled by default.  
+Example: `cert_verification`
 
 #### ca_cert_file_path
 Points to a file of CA certificates in PEM format. The file can contain several CA certificates identified by
@@ -168,8 +180,9 @@ Points to a file of CA certificates in PEM format. The file can contain several 
  ... (CA certificate in base64 encoding) ...
  -----END CERTIFICATE-----
 ```
-sequences. Before, between, and after the certificates text is allowed which can be used e.g. for descriptions of the certificates. (Taken from OpenSSL man).
-
+sequences. Before, between, and after the certificates text is allowed which can be used e.g. for descriptions of the certificates. (Taken from OpenSSL man).  
+Example: `/path/to/file`
 
 #### ca_cert_dir_path
-Points to a directory containing CA certificates in PEM format. The files each contain one CA certificate. The files are looked up by the CA subject name hash value, which must hence be available. If more than one CA certificate with the same name hash value exist, the extension must be different (e.g. 9d66eef0.0, 9d66eef0.1 etc). The search is performed in the ordering of the extension number, regardless of other properties of the certificates. Use the c_rehash utility to create the necessary links. (Taken from OpenSSL man). If `ca_cert_file_path` is defined, this option will be ignored.
+Points to a directory containing CA certificates in PEM format. The files each contain one CA certificate. The files are looked up by the CA subject name hash value, which must hence be available. If more than one CA certificate with the same name hash value exist, the extension must be different (e.g. 9d66eef0.0, 9d66eef0.1 etc). The search is performed in the ordering of the extension number, regardless of other properties of the certificates. Use the c_rehash utility to create the necessary links. (Taken from OpenSSL man). If `ca_cert_file_path` is defined, this option will be ignored.  
+Example: `/path/to/dir`

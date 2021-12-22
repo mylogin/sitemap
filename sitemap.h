@@ -103,15 +103,16 @@ struct Url_struct {
 	double time = 0;
 	int try_cnt = 0;
 	bool ssl = false;
-	bool handle = false;
+	int handle = 0;
 };
 
 struct Filter {
 	int type;
 	int dir;
 	std::string val;
+	std::regex reg;
 	enum {type_regexp, type_get, type_ext};
-	enum {exclude, include};
+	enum {exclude, include, skip};
 };
 
 class Thread;
@@ -128,7 +129,8 @@ public:
 	bool log_redirect = false;
 	bool log_error_reply = false;
 	bool log_ignored_url = false;
-	bool log_parse_url = false;
+	bool log_skipped_url = false;
+	bool log_bad_url = false;
 	bool log_other = false;
 	bool log_info = false;
 	bool param_debug = false;
@@ -145,9 +147,9 @@ public:
 	std::string ca_cert_dir_path;
 	bool link_check = false;
 	bool sitemap = false;
+	std::vector<Filter> param_filter;
 
 	bool running = true;
-	std::vector<Filter> param_filter;
 	std::multimap<std::string, Xml_tag> param_xml_tag;
 	Uri::Uri uri;
 	std::condition_variable cond;
