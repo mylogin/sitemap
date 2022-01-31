@@ -800,43 +800,41 @@ void Thread::load() {
 				}
 				continue;
 			}
-			std::shared_ptr<httplib::Client> cli;
-			if(m_url.ssl) {
-#ifdef CPPHTTPLIB_OPENSSL_SUPPORT
-				cli = std::make_shared<httplib::SSLClient>(m_url.host.c_str());
-				httplib::SSLClient& rcli = static_cast<httplib::SSLClient &>(*cli);
-				rcli.enable_server_certificate_verification(main->cert_verification);
-				if(main->cert_verification) {
-					if(!main->ca_cert_file_path.empty()) {
-						rcli.set_ca_cert_path(main->ca_cert_file_path.c_str());
-					}
-					if(!main->ca_cert_dir_path.empty()) {
-						rcli.set_ca_cert_path(nullptr, main->ca_cert_dir_path.c_str());
-					}
-				}
-#else
+#ifndef CPPHTTPLIB_OPENSSL_SUPPORT
+			if (m_url.ssl) {
 				CSV_Writer csv(main->cell_delim);
 				csv << "HTTPS not supported" << Utils::join(m_url.remote, main->in_cell_delim.at(0)) << m_url.parent;
 				main->log("error_reply", csv.to_string());
 				continue;
+			}
 #endif
-			} else {
-				cli = std::make_shared<httplib::Client>(m_url.host.c_str());
+			std::string scheme_host(m_url.ssl ? "https" : "http");
+			scheme_host += "://" + m_url.host;
+			httplib::Client cli(scheme_host);
+			if(m_url.ssl) {
+				cli.enable_server_certificate_verification(main->cert_verification);
+				if(main->cert_verification) {
+					if(!main->ca_cert_file_path.empty()) {
+						cli.set_ca_cert_path(main->ca_cert_file_path.c_str());
+					}
+					if(!main->ca_cert_dir_path.empty()) {
+						cli.set_ca_cert_path(nullptr, main->ca_cert_dir_path.c_str());
+					}
+				}
 			}
 			Timer tmr;
 			if(m_url.handle) {
-				reply = cli->Get(m_url.path.c_str());
+				result = std::make_shared<httplib::Result>(cli.Get(m_url.path.c_str()));
 			} else {
-				reply = cli->Head(m_url.path.c_str());
+				result = std::make_shared<httplib::Result>(cli.Head(m_url.path.c_str()));
 			}
 			double time = tmr.elapsed();
 			m_url.time += time;
 			m_url.try_cnt++;
 			main->debug("thread: " + std::to_string(id) + ", time: " + std::to_string(time) + ", url: " + m_url.remote.back() + ", try: " + std::to_string(m_url.try_cnt));
 			main->update_url(m_url);
-#ifdef CPPHTTPLIB_OPENSSL_SUPPORT
 			if(m_url.ssl) {
-				auto res = static_cast<httplib::SSLClient &>(*cli).get_openssl_verify_result();
+				auto res = cli.get_openssl_verify_result();
 				if(res != X509_V_OK) {
 					CSV_Writer csv(main->cell_delim);
 					csv << std::string("Certificate verification error: ") + X509_verify_cert_error_string(res) << Utils::join(m_url.remote, main->in_cell_delim.at(0)) << m_url.parent;
@@ -844,7 +842,6 @@ void Thread::load() {
 					continue;
 				}
 			}
-#endif
 			http_finished();
 			if(main->param_sleep) {
 				std::this_thread::sleep_for(std::chrono::seconds(main->param_sleep));
@@ -861,6 +858,7 @@ void Thread::load() {
 }
 
 void Thread::http_finished() {
+	auto& reply = *result;
 	if (!reply) {
 		if(m_url.try_cnt < main->try_limit) {
 			main->try_again(m_url.normalize);

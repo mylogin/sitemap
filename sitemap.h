@@ -186,7 +186,7 @@ public:
 	bool set_url(const std::string&, bool);
 	void start();
 	void join();
-	std::shared_ptr<httplib::Response> reply;
+	std::shared_ptr<httplib::Result> result;
 	std::unique_ptr<std::thread> uthread = nullptr;
 };
 
