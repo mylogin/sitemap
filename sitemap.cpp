@@ -70,15 +70,14 @@ std::string Utils::str_tolower(std::string s) {
 XML_writer::XML_writer(std::ostream& stream) : output(stream) {}
 
 void XML_writer::write_start_doc() {
-	if (!this->open_tags.empty()) {
+	if(!this->open_tags.empty()) {
 		throw std::runtime_error("Attempt to write start document in already started document.");
 	}
 	this->output << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>";
-	this->cur_tag_unclosed = false;
 }
 
 void XML_writer::write_end_doc() {
-	while (!this->open_tags.empty()) {
+	while(!this->open_tags.empty()) {
 		this->write_end_el();
 	}
 }
@@ -92,12 +91,12 @@ void XML_writer::write_start_el(const std::string& name) {
 }
 
 void XML_writer::write_end_el() {
-	if (this->open_tags.empty()) {
+	if(this->open_tags.empty()) {
 		throw std::runtime_error("Attempt to close tag while no tags are currently opened.");
 	}
 	close_tag_if_open();
 	this->indent_level--;
-	if (!this->last_operation_was_start_el) {
+	if(!this->last_operation_was_start_el) {
 		this->output << "\n" << std::string(this->indent_level, '	');
 	}
 	this->output << "</" << this->open_tags.top() << ">";
@@ -106,14 +105,14 @@ void XML_writer::write_end_el() {
 }
 
 void XML_writer::close_tag_if_open() {
-	if (this->cur_tag_unclosed) {
+	if(this->cur_tag_unclosed) {
 		this->output << ">";
 		this->cur_tag_unclosed = false;
 	}
 }
 
 void XML_writer::write_attr(const std::string& name, const std::string& value) {
-	if (!this->cur_tag_unclosed) {
+	if(!this->cur_tag_unclosed) {
 		throw std::runtime_error("Attempt to write attribute while not in open tag.");
 	}
 	this->output << " " << name << "=\"" << escape_str(value) << "\"";
@@ -222,11 +221,11 @@ void Main::import_param(const std::string& file) {
 	}
 	std::string line;
 	std::vector<std::vector<std::string>> settings;
-	while (std::getline(infile, line)) {
+	while(std::getline(infile, line)) {
 		std::istringstream iss(line);
 		std::vector<std::string> res((std::istream_iterator<std::string>(iss)), std::istream_iterator<std::string>());
 		if(res.size() == 1) {
-			if(res[0] == "parse_subdomain") {
+			if(res[0] == "subdomain") {
 				param_subdomain = true;
 			} else if(res[0] == "log_redirect") {
 				log_redirect = true;
@@ -279,8 +278,6 @@ void Main::import_param(const std::string& file) {
 				try_limit = std::stoi(res[1]);
 			} else if(res[0] == "cell_delim") {
 				cell_delim = res[1];
-			} else if(res[0] == "in_cell_delim") {
-				in_cell_delim = res[1];
 			} else if(res[0] == "ca_cert_file_path") {
 				ca_cert_file_path = res[1];
 			} else if(res[0] == "ca_cert_dir_path") {
@@ -356,7 +353,7 @@ void Main::start() {
 	Url_struct new_url;
 	new_url.found = param_url;
 	new_url.base_href = param_url;
-	new_url.handle = 1;
+	new_url.handle = url_handle_t::query_parse;
 	if(!handle_url(new_url, false)) {
 		throw std::runtime_error("Parameter 'url' is not valid");
 	}
@@ -364,7 +361,7 @@ void Main::start() {
 
 	std::thread t([this]() {
 		std::string ch;
-		while (1) {
+		while(1) {
 			std::cin >> ch;
 			if(ch == "q") {
 				std::unique_lock<std::mutex> lk(mutex);
@@ -384,7 +381,7 @@ void Main::start() {
 		threads.emplace_back(i + 1, this);
 		threads[i].start();
 	}
-	for (auto &thread : threads) {
+	for(auto &thread : threads) {
 		thread.join();
 	}
 }
@@ -402,29 +399,14 @@ bool Main::set_url(Url_struct& url) {
 	if(it == url_all.end()) {
 		url.id = url_all.size() + 1;
 		url_all[url.normalize] = url;
-		url_queue.push(url);
-		lk.unlock();
-		cond.notify_one();
-	}
-	return true;
-}
-
-void Main::redirect_url(const std::string& norm, const Url_struct& url) {
-	std::unique_lock<std::mutex> lk(mutex);
-	auto it = url_all.find(norm);
-	if(it != url_all.end()) {
-		if(it->second.remote.size() > redirect_limit) {
-			it->second.remote.push_back("LIMIT");
-			return;
+		if(url.handle != url_handle_t::none) {
+			url_queue.push(url);
 		}
-		it->second.remote.push_back(url.remote.back());
-		it->second.path = url.path;
-		it->second.host = url.host;
-		it->second.ssl = url.ssl;
-		url_queue.push(it->second);
 		lk.unlock();
 		cond.notify_one();
+		return true;
 	}
+	return false;
 }
 
 void Main::try_again(const std::string& norm) {
@@ -441,16 +423,13 @@ void Main::update_url(const Url_struct& url) {
 	std::lock_guard<std::mutex> lk(mutex);
 	auto it = url_all.find(url.normalize);
 	if(it != url_all.end()) {
-		it->second.is_html = url.is_html;
-		it->second.charset = url.charset;
-		it->second.time = url.time;
-		it->second.try_cnt = url.try_cnt;
+		it->second = url;
 	}
 }
 
 bool Main::get_url(Thread* t) {
 	std::unique_lock<std::mutex> lk(mutex);
-	if (!running) {
+	if(!running) {
 		if(!t->suspend) {
 			t->suspend = true;
 			thread_work--;
@@ -496,7 +475,7 @@ void Main::debug(const std::string& msg) {
 void Main::log(const std::string& file, const std::string& msg) {
 	std::lock_guard<std::mutex> lock(mutex_log);
 	std::ofstream ofs (dir + "/" + file + ".log", std::ofstream::out | std::ofstream::app);
-	if (!ofs.is_open()) {
+	if(!ofs.is_open()) {
 		std::cout << msg << std::endl;
 		std::cout << "Can not open " << dir + "/" + file + ".log" << std::endl;
 		return;
@@ -531,7 +510,7 @@ bool Main::handle_url(Url_struct& url_new, bool filter) {
 	auto r = b.Resolve(d);
 
 	// ----- base filter
-	if (r.GetScheme().find("http") != 0) {
+	if(r.GetScheme().find("http") != 0) {
 		return false;
 	}
 	auto d_host = r.GetHost();
@@ -540,7 +519,7 @@ bool Main::handle_url(Url_struct& url_new, bool filter) {
 		return false;
 	}
 	std::size_t i = d_host.find(b_host);
-	if (i == std::string::npos || i != d_host.size() - b_host.size()) {
+	if(i == std::string::npos || i != d_host.size() - b_host.size()) {
 		return false;
 	}
 
@@ -560,7 +539,7 @@ bool Main::handle_url(Url_struct& url_new, bool filter) {
 					auto split_query = Utils::split(r.GetQuery(), '&');
 					check = true;
 					res = false;
-					for (auto i : split_query) {
+					for(auto i : split_query) {
 						auto query_kv = Utils::split(i, '=');
 						if(query_kv[0] == (*it_filter).val) {
 							res = true;
@@ -591,7 +570,9 @@ bool Main::handle_url(Url_struct& url_new, bool filter) {
 					return false;
 				}
 				if((*it_filter).dir == Filter::skip && res) {
-					url_new.handle = 2;
+					if(url_new.handle == url_handle_t::query_parse) {
+						url_new.handle = url_handle_t::none;
+					}
 				}
 			}
 		}
@@ -603,30 +584,26 @@ bool Main::handle_url(Url_struct& url_new, bool filter) {
 	}
 	url_new.path = uri_.GenerateString();
 	url_new.normalize = uri_normalize(r);
-	url_new.remote.push_back(r.GenerateString());
+	url_new.resolved = r.GenerateString();
 	url_new.ssl = r.GetScheme() == "https";
 	url_new.host = r.GetHost();
+	url_new.base_href = url_new.resolved;
 	return true;
 }
 
 void Main::finished() {
-	for(auto it = url_all.begin() ; it != url_all.end(); ++it) {
-		if(log_redirect && it->second.remote.size() > 1) {
+	if(log_info) {
+		for(auto it = url_all.begin(); it != url_all.end(); ++it) {
 			CSV_Writer csv(cell_delim);
-			csv.add(Utils::join(it->second.remote, in_cell_delim.at(0)));
-			csv.add(it->second.parent);
-			log("redirect", csv.to_string());
-		}
-		if(log_info) {
-			CSV_Writer csv(cell_delim);
+			csv.add(std::to_string(it->second.id));
+			csv.add(std::to_string(it->second.parent));
 			csv.add(std::to_string(it->second.time));
-			csv.add(std::to_string(it->second.is_html));
 			csv.add(std::to_string(it->second.try_cnt));
-			csv.add(std::to_string(it->second.remote.size()));
-			csv.add(it->second.charset);
+			csv.add(std::to_string(it->second.is_html));
 			csv.add(it->second.found);
-			csv.add(Utils::join(it->second.remote, in_cell_delim.at(0)));
-			csv.add(it->second.parent);
+			csv.add(it->second.resolved);
+			csv.add(it->second.charset);
+			csv.add(it->second.error);
 			log("info", csv.to_string());
 		}
 	}
@@ -660,21 +637,21 @@ void Main::finished() {
 		writer.write_start_el("urlset");
 		writer.write_attr("xmlns", "http://www.sitemaps.org/schemas/sitemap/0.9");
 		for(auto it = url_all.begin(); it != url_all.end(); ++it) {
-			if(!it->second.handle) {
+			if(it->second.handle == url_handle_t::query) {
 				continue;
 			}
-			if(it->second.handle == 1 && !it->second.is_html) {
+			if(it->second.handle == url_handle_t::query_parse && !it->second.is_html) {
 				continue;
 			}
 			int str_size = 0;
 			std::vector<std::pair<std::string, std::string>> tags;
-			tags.emplace_back("loc", writer.escape_str(it->second.remote.front()));
+			tags.emplace_back("loc", writer.escape_str(it->second.resolved));
 			str_size += tags.back().second.size();
 			for(auto it1 = param_xml_tag.begin(); it1 != param_xml_tag.end(); ++it1) {
 				tags.emplace_back(it1->first, writer.escape_str(it1->second.def));
 				for(auto it2 = it1->second.regexp.begin() ; it2 != it1->second.regexp.end(); ++it2) {
 					std::regex reg(it2->second, std::regex_constants::ECMAScript | std::regex_constants::icase);
-					if(std::regex_search(it->second.remote.front(), reg)) {
+					if(std::regex_search(it->second.resolved, reg)) {
 						tags.back().second = writer.escape_str(it2->first);
 					}
 				}
@@ -737,7 +714,7 @@ void Main::finished() {
 
 void Thread::start() {
 	p.set_callback([this](html::node& n) {
-		if(n.type_node != html::node_t::tag) {
+		if(n.type_node != html::node_t::tag || n.type_tag != html::tag_t::open) {
 			return;
 		}
 		if(n.tag_name == "base") {
@@ -750,7 +727,10 @@ void Thread::start() {
 		if(std::find(Tags_main.begin(), Tags_main.end(), n.tag_name) != Tags_main.end()) {
 			auto href = n.get_attr("href");
 			if(!href.empty()) {
-				set_url(href, true);
+				Url_struct new_url;
+				new_url.found = href;
+				new_url.handle = url_handle_t::query_parse;
+				set_url(new_url);
 			}
 			return;
 		}
@@ -765,7 +745,10 @@ void Thread::start() {
 						if(attr.pre && !attr.pre(n, href, this)) {
 							continue;
 						}
-						set_url(href, false);
+						Url_struct new_url;
+						new_url.found = href;
+						new_url.handle = url_handle_t::query;
+						set_url(new_url);
 					}
 					return;
 				}
@@ -776,7 +759,7 @@ void Thread::start() {
 }
 
 void Thread::join() {
-	if (uthread != nullptr) {
+	if(uthread != nullptr) {
 		uthread->join();
 		uthread = nullptr;
 	}
@@ -792,57 +775,42 @@ void Thread::load() {
 			if(suspend) {
 				continue;
 			}
-			if(m_url.handle == 2) {
-				if(main->log_skipped_url) {
-					CSV_Writer csv(main->cell_delim);
-					csv << m_url.found << m_url.parent;
-					main->log("skipped_url", csv.to_string());
-				}
-				continue;
-			}
 #ifndef CPPHTTPLIB_OPENSSL_SUPPORT
-			if (m_url.ssl) {
-				CSV_Writer csv(main->cell_delim);
-				csv << "HTTPS not supported" << Utils::join(m_url.remote, main->in_cell_delim.at(0)) << m_url.parent;
-				main->log("error_reply", csv.to_string());
+			if(m_url.ssl) {
+				if(main->log_error_reply) {
+					CSV_Writer csv(main->cell_delim);
+					csv << "HTTPS not supported" << m_url.resolved << m_url.parent;
+					main->log("error_reply", csv.to_string());
+				}
 				continue;
 			}
 #endif
 			std::string scheme_host(m_url.ssl ? "https" : "http");
 			scheme_host += "://" + m_url.host;
-			httplib::Client cli(scheme_host);
+			cli = std::make_shared<httplib::Client>(scheme_host);
 			if(m_url.ssl) {
-				cli.enable_server_certificate_verification(main->cert_verification);
+				cli->enable_server_certificate_verification(main->cert_verification);
 				if(main->cert_verification) {
 					if(!main->ca_cert_file_path.empty()) {
-						cli.set_ca_cert_path(main->ca_cert_file_path.c_str());
+						cli->set_ca_cert_path(main->ca_cert_file_path.c_str());
 					}
 					if(!main->ca_cert_dir_path.empty()) {
-						cli.set_ca_cert_path(nullptr, main->ca_cert_dir_path.c_str());
+						cli->set_ca_cert_path(nullptr, main->ca_cert_dir_path.c_str());
 					}
 				}
 			}
 			Timer tmr;
-			if(m_url.handle) {
-				result = std::make_shared<httplib::Result>(cli.Get(m_url.path.c_str()));
+			if(m_url.handle == url_handle_t::query_parse) {
+				result = std::make_shared<httplib::Result>(cli->Get(m_url.path.c_str()));
 			} else {
-				result = std::make_shared<httplib::Result>(cli.Head(m_url.path.c_str()));
+				result = std::make_shared<httplib::Result>(cli->Head(m_url.path.c_str()));
 			}
 			double time = tmr.elapsed();
 			m_url.time += time;
 			m_url.try_cnt++;
-			main->debug("thread: " + std::to_string(id) + ", time: " + std::to_string(time) + ", url: " + m_url.remote.back() + ", try: " + std::to_string(m_url.try_cnt));
-			main->update_url(m_url);
-			if(m_url.ssl) {
-				auto res = cli.get_openssl_verify_result();
-				if(res != X509_V_OK) {
-					CSV_Writer csv(main->cell_delim);
-					csv << std::string("Certificate verification error: ") + X509_verify_cert_error_string(res) << Utils::join(m_url.remote, main->in_cell_delim.at(0)) << m_url.parent;
-					main->log("error_reply", csv.to_string());
-					continue;
-				}
-			}
+			main->debug("thread: " + std::to_string(id) + ", time: " + std::to_string(time) + ", url: " + m_url.resolved + ", try: " + std::to_string(m_url.try_cnt));
 			http_finished();
+			main->update_url(m_url);
 			if(main->param_sleep) {
 				std::this_thread::sleep_for(std::chrono::seconds(main->param_sleep));
 			}
@@ -859,45 +827,68 @@ void Thread::load() {
 
 void Thread::http_finished() {
 	auto& reply = *result;
-	if (!reply) {
+	if(!reply) {
 		if(m_url.try_cnt < main->try_limit) {
 			main->try_again(m_url.normalize);
-		} else if(main->log_error_reply) {
-			CSV_Writer csv(main->cell_delim);
-			csv << "No reply" << Utils::join(m_url.remote, main->in_cell_delim.at(0)) << m_url.parent;
-			main->log("error_reply", csv.to_string());
+		} else {
+			m_url.error = httplib::to_string(reply.error());
+			if(main->log_error_reply) {
+				CSV_Writer csv(main->cell_delim);
+				csv << m_url.error << m_url.resolved << m_url.parent;
+				main->log("error_reply", csv.to_string());
+			}
 		}
 		return;
 	}
-	if(reply->has_header("Location") && reply->status >= 300 && reply->status < 400) {
-		auto url = reply->get_header_value("Location");
-		Url_struct new_url;
-		new_url.found = url;
-		new_url.parent = m_url.remote.back();
-		new_url.base_href = m_url.remote.back();
-		new_url.handle = m_url.handle;
-		if(!main->handle_url(new_url)) {
-			if(main->log_ignored_url) {
+	if(m_url.ssl) {
+		auto res = cli->get_openssl_verify_result();
+		if(res != X509_V_OK) {
+			m_url.error = std::string("Certificate verification error: ") + X509_verify_cert_error_string(res);
+			if(main->log_error_reply) {
 				CSV_Writer csv(main->cell_delim);
-				csv << url << m_url.remote.back();
-				main->log("ignored_url", csv.to_string());
+				csv << m_url.error << m_url.resolved << m_url.parent;
+				main->log("error_reply", csv.to_string());
 			}
 			return;
 		}
-		main->redirect_url(m_url.normalize, new_url);
-		return;
 	}
 	if(reply->status >= 500 && reply->status < 600 && m_url.try_cnt < main->try_limit) {
 		main->try_again(m_url.normalize);
 		return;
 	}
-	if(main->log_error_reply && reply->status != 200) {
-		CSV_Writer csv(main->cell_delim);
-		csv << std::string("Code: ") + std::to_string(reply->status) << Utils::join(m_url.remote, main->in_cell_delim.at(0)) << m_url.parent;
-		main->log("error_reply", csv.to_string());
+	if(reply->status >= 300 && reply->status < 400) {
+		if(main->log_redirect) {
+			CSV_Writer csv(main->cell_delim);
+			csv << m_url.resolved << m_url.parent;
+			main->log("redirect", csv.to_string());
+		}
+		if(m_url.redirect_cnt > main->redirect_limit) {
+			if(main->log_error_reply) {
+				CSV_Writer csv(main->cell_delim);
+				csv << "Redirect limit reached" << m_url.resolved << m_url.parent;
+				main->log("error_reply", csv.to_string());
+			}
+			return;
+		}
+		if(reply->has_header("Location")) {
+			Url_struct new_url;
+			new_url.found = reply->get_header_value("Location");
+			new_url.handle = url_handle_t::query_parse;
+			new_url.redirect_cnt = m_url.redirect_cnt + 1;
+			set_url(new_url);
+		}
 		return;
 	}
-	if(!m_url.handle) {
+	if(reply->status != 200) {
+		m_url.error = "Code:" + std::to_string(reply->status);
+		if(main->log_error_reply) {
+			CSV_Writer csv(main->cell_delim);
+			csv << m_url.error << m_url.resolved << m_url.parent;
+			main->log("error_reply", csv.to_string());
+		}
+		return;
+	}
+	if(m_url.handle == url_handle_t::query) {
 		return;
 	}
 	if(!reply->has_header("Content-Type")) {
@@ -914,20 +905,21 @@ void Thread::http_finished() {
 	if(pos != std::string::npos) {
 		m_url.charset = content_type.substr(pos + 8);
 	}
-	m_url.base_href = m_url.remote.back();
 	p.parse(reply->body);
-	main->update_url(m_url);
 }
 
-bool Thread::set_url(const std::string& href, bool handle) {
-	Url_struct new_url;
-	new_url.found = href;
-	new_url.parent = m_url.remote.back();
+bool Thread::set_url(Url_struct& new_url) {
+	new_url.parent = m_url.id;
 	new_url.base_href = m_url.base_href;
-	new_url.handle = handle;
 	if(main->handle_url(new_url)) {
 		if(!main->set_url(new_url)) {
 			return false;
+		} else if(new_url.handle == url_handle_t::none) {
+			if(main->log_skipped_url) {
+				CSV_Writer csv(main->cell_delim);
+				csv << new_url.resolved << new_url.parent;
+				main->log("skipped_url", csv.to_string());
+			}
 		}
 	} else if(main->log_ignored_url) {
 		CSV_Writer csv(main->cell_delim);
@@ -938,7 +930,7 @@ bool Thread::set_url(const std::string& href, bool handle) {
 }
 
 bool Handler::attr_charset(html::node& n, std::string& href, Thread* t) {
-	if (t->m_url.charset.empty()) {
+	if(t->m_url.charset.empty()) {
 		if(Utils::str_tolower(n.get_attr("http-equiv")) == "content-type") {
 			auto pos = href.find("charset=");
 			if(pos != std::string::npos) {
@@ -950,12 +942,15 @@ bool Handler::attr_charset(html::node& n, std::string& href, Thread* t) {
 }
 
 bool Handler::attr_refresh(html::node& n, std::string& href, Thread* t) {
-	if (t->m_url.charset.empty()) {
+	if(t->m_url.charset.empty()) {
 		if(Utils::str_tolower(n.get_attr("http-equiv")) == "refresh") {
 			std::regex e("[\\d\\s]+;\\s*url\\s*=\\s*(.+)", std::regex_constants::ECMAScript | std::regex_constants::icase);
 			std::smatch m;
 			if(std::regex_match(href, m, e)) {
-				t->set_url(m[1], false);
+				Url_struct new_url;
+				new_url.found = m[1];
+				new_url.handle = url_handle_t::query_parse;
+				t->set_url(new_url);
 			}
 		}
 	}
@@ -964,10 +959,13 @@ bool Handler::attr_refresh(html::node& n, std::string& href, Thread* t) {
 
 bool Handler::attr_srcset(html::node& n, std::string& href, Thread* t) {
 	auto src_all = Utils::split(href, ',');
-	for (auto v : src_all) {
+	for(auto v : src_all) {
 		auto src = Utils::split(v, ' ');
 		if(!src.empty()) {
-			t->set_url(src[0], false);
+			Url_struct new_url;
+			new_url.found = src[0];
+			new_url.handle = url_handle_t::query;
+			t->set_url(new_url);
 		}
 	}
 	return false;
@@ -981,7 +979,7 @@ int main(int argc, char *argv[]) {
 		}
 		c.import_param(argv[1]);
 		c.start();
-		if (exc_ptr) {
+		if(exc_ptr) {
 			std::rethrow_exception(exc_ptr);
 		}
 		c.finished();

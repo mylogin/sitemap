@@ -65,10 +65,6 @@ Example: `try_limit 5`
 Delimeter in log files.  
 Example: `cell_delim ;`
 
-#### in_cell_delim (default: |)
-Delimeter in cells of log files.  
-Example: `in_cell_delim ~`
-
 #### debug
 Will write to standard output information about what the program does.  
 Example: `debug`
@@ -124,19 +120,19 @@ All log files are written in CSV format, the file name is the same as the parame
 Columns description:
 | Column | Description |
 |-|-|
+| id | Identificator of page
 | found | URL found on the page as is |
-| url | Handled URL with all parts (scheme, host etc.) or URL chain in case of redirects |
-| parent | Page on which url was found |
-| reason | Reason of error |
+| url | Handled URL with all parts (scheme, host etc.) |
+| parent | ID page on which url was found |
 | time | HTTP response time |
 | is_html | Is page content is html |
 | try_cnt | Number of retries if the request fails |
-| redirect_cnt | Number of redirects for a given URL |
 | charset | Charset of the page |
+| error | Text of error |
 
 #### log_error_reply
-Urls with status_code != Success and status_code != Redirection, certificate errors.  
-Columns: `reason,url,parent`
+Urls with status_code != Success and status_code != Redirection, try limits, certificate errors.
+Columns: `error,url,parent`
 
 #### log_redirect
 Urls that returned redirect status.  
@@ -146,25 +142,21 @@ Columns: `url,parent`
 Urls with bad format.  
 Columns: `found,parent`
 
-#### log_no_parse
-Urls with bad format.  
-Columns: `found,parent`
-
 #### log_ignored_url
 Urls that did not pass custom filters.  
 Columns: `found,parent`
 
 #### log_skipped_url
 Urls whose content is not requested.  
-Columns: `found,parent`
+Columns: `url,parent`
 
 #### log_info
-Verbose log.  
-Columns: `time,is_html,try_cnt,redirect_cnt,charset,found,url,parent`
+Verbose log.
+Columns: `id,parent,time,try_cnt,is_html,found,url,charset,error`
 
 #### log_other
 Other errors and exceptions.  
-Columns: `reason`
+Columns: `error`
 
 ### HTTPS options
 HTTPS support is implemented using the OpenSSL library and is enabled by default. To use HTTPS add/remove `CPPHTTPLIB_OPENSSL_SUPPORT` macro from sitemap.h and run `make`. `libcrypto`, `libssl` (`libcrypt32`, `libcryptui` on Windows) should be available. See HTTPS options below.

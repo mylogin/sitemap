@@ -58,8 +58,8 @@ public:
 private:
 	std::stack<std::string> open_tags;
 	std::ostream& output;
-	bool cur_tag_unclosed;
-	bool last_operation_was_start_el;
+	bool cur_tag_unclosed = false;
+	bool last_operation_was_start_el = false;
 	int indent_level = 0;
 	void close_tag_if_open();
 };
@@ -89,10 +89,11 @@ struct Xml_tag {
 	std::string def;
 };
 
+enum class url_handle_t {query, query_parse, none};
+
 struct Url_struct {
-	std::string found;					// url found on page, in case of redirect first found
-	std::vector<std::string> remote;	// resolved urls, all redirect chain
-	std::string parent;					// taken from remote
+	std::string found;
+	std::string resolved;
 	std::string normalize;
 	std::string charset;
 	std::string path;
@@ -100,10 +101,13 @@ struct Url_struct {
 	std::string base_href;
 	bool is_html = false;
 	int id = 0;
+	int parent = 0;
 	double time = 0;
 	int try_cnt = 0;
 	bool ssl = false;
-	int handle = 0;
+	size_t redirect_cnt = 0;
+	url_handle_t handle = url_handle_t::query;
+	std::string error;
 };
 
 struct Filter {
@@ -125,7 +129,6 @@ public:
 	std::string xml_name = "sitemap";
 	std::string xml_index_name;
 	std::string cell_delim = ",";
-	std::string in_cell_delim = "|";
 	bool log_redirect = false;
 	bool log_error_reply = false;
 	bool log_ignored_url = false;
@@ -162,7 +165,6 @@ public:
 	void finished();
 	bool handle_url(Url_struct&, bool filter = true);
 	bool set_url(Url_struct&);
-	void redirect_url(const std::string&, const Url_struct&);
 	void try_again(const std::string&);
 	void update_url(const Url_struct&);
 	bool get_url(Thread*);
@@ -183,9 +185,10 @@ public:
 	html::parser p;
 	void load();
 	void http_finished();
-	bool set_url(const std::string&, bool);
+	bool set_url(Url_struct&);
 	void start();
 	void join();
+	std::shared_ptr<httplib::Client> cli;
 	std::shared_ptr<httplib::Result> result;
 	std::unique_ptr<std::thread> uthread = nullptr;
 };
