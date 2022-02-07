@@ -159,19 +159,18 @@ public:
 	std::mutex mutex;
 	std::mutex mutex_log;
 	int thread_work = 0;
-	std::map<std::string, Url_struct> url_all;
+	std::map<std::string, std::unique_ptr<Url_struct>> url_all;
 	void import_param(const std::string&);
 	void start();
 	void finished();
-	bool handle_url(Url_struct&, bool filter = true);
-	bool set_url(Url_struct&);
-	void try_again(const std::string&);
-	void update_url(const Url_struct&);
+	bool handle_url(Url_struct*, bool filter = true);
+	bool set_url(std::unique_ptr<Url_struct>&);
+	void try_again(Url_struct*);
 	bool get_url(Thread*);
 	std::string uri_normalize(const Uri::Uri&);
 	void log(const std::string&, const std::string&);
 	void debug(const std::string&);
-	std::queue<Url_struct> url_queue;
+	std::queue<Url_struct*> url_queue;
 	bool url_lim_reached = false;
 };
 
@@ -181,11 +180,11 @@ public:
 	bool suspend = false;
 	int id;
 	Main* main;
-	Url_struct m_url;
+	Url_struct* m_url;
 	html::parser p;
 	void load();
 	void http_finished();
-	bool set_url(Url_struct&);
+	void set_url(std::unique_ptr<Url_struct>&);
 	void start();
 	void join();
 	std::shared_ptr<httplib::Client> cli;
