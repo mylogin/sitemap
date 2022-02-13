@@ -42,6 +42,7 @@ public:
 	static std::vector<std::string> split(const std::string&, char, bool ignore_ws = true);
 	static std::string join(const std::vector<std::string>&, char);
 	static std::string str_tolower(std::string);
+	static bool file_exists(const std::string&);
 };
 
 class XML_writer {
@@ -66,22 +67,70 @@ private:
 
 class CSV_Writer {
 public:
-	CSV_Writer() = default;
-	CSV_Writer(std::string);
+	CSV_Writer(std::ostream& stream, std::string);
 	CSV_Writer& add(std::string);
 	CSV_Writer& add(const char *str);
 	CSV_Writer& add(char *str);
 	template<typename T> CSV_Writer& add(T str);
 	template<typename T> CSV_Writer& operator<<(const T&);
-	void operator+=(CSV_Writer&);
-	std::string to_string();
 	CSV_Writer& row();
-	bool write_to_file(std::string, bool append = false);
-	friend std::ostream& operator<<(std::ostream&, CSV_Writer&);
 private:
+	std::ostream& output;
 	std::string seperator = ",";
 	bool line_empty = true;
-	std::stringstream ss;
+};
+
+class Main;
+
+class Log {
+public:
+	enum Field: int {id, found, url, parent, time, is_html, try_cnt, charset, error, thread};
+	virtual void write(const std::vector<std::string>&) {}
+	Log(Main*, const std::string&, const std::string&, const std::vector<Field>&);
+	~Log();
+protected:
+	Main* main;
+	std::ofstream file;
+	std::string file_name;
+	const std::vector<Field> fields;
+	const std::vector<std::string> fields_all{"id", "found", "url", "parent", "time", "is_html", "try_cnt", "charset", "error", "thread"};
+};
+
+class Console_Log: public Log {
+public:
+	Console_Log(Main*, const std::string&, const std::vector<Field>&);
+	void write(const std::vector<std::string>&);
+};
+
+class CSV_Log: public Log {
+public:
+	CSV_Log(Main*, const std::string&, const std::vector<Field>&);
+	void write(const std::vector<std::string>&);
+private:
+	CSV_Writer writer;
+};
+
+class XML_Log: public Log {
+public:
+	XML_Log(Main*, const std::string&, const std::vector<Field>&);
+	~XML_Log();
+	void write(const std::vector<std::string>&);
+private:
+	XML_writer writer;
+};
+
+class LogWrap {
+public:
+	void init(Main*, const std::string&, const std::vector<Log::Field>&);
+	operator bool() const {
+		return enabled;
+	}
+	Log* operator->() const {
+		return log.get();
+	}
+private:
+	std::unique_ptr<Log> log;
+	bool enabled = false;
 };
 
 struct Xml_tag {
@@ -128,15 +177,15 @@ public:
 	std::string param_url;
 	std::string xml_name = "sitemap";
 	std::string xml_index_name;
-	std::string cell_delim = ",";
-	bool log_redirect = false;
-	bool log_error_reply = false;
-	bool log_ignored_url = false;
-	bool log_skipped_url = false;
-	bool log_bad_url = false;
-	bool log_other = false;
-	bool log_info = false;
-	bool param_debug = false;
+	std::string csv_separator = ",";
+	std::string type_log = "csv";
+	bool param_log_redirect = false;
+	bool param_log_error_reply = false;
+	bool param_log_ignored_url = false;
+	bool param_log_skipped_url = false;
+	bool param_log_bad_url = false;
+	bool param_log_other = false;
+	bool param_log_info = false;
 	bool param_subdomain = false;
 	int param_sleep = 0;
 	int thread_cnt = 1;
@@ -151,6 +200,8 @@ public:
 	bool link_check = false;
 	bool sitemap = false;
 	std::vector<Filter> param_filter;
+	int max_log_cnt = 100;
+	bool rewrite_log = false;
 
 	bool running = true;
 	std::multimap<std::string, Xml_tag> param_xml_tag;
@@ -160,6 +211,16 @@ public:
 	std::mutex mutex_log;
 	int thread_work = 0;
 	std::map<std::string, std::unique_ptr<Url_struct>> url_all;
+	std::queue<Url_struct*> url_queue;
+	bool url_lim_reached = false;
+	LogWrap log_redirect;
+	LogWrap log_error_reply;
+	LogWrap log_ignored_url;
+	LogWrap log_skipped_url;
+	LogWrap log_bad_url;
+	LogWrap log_other;
+	LogWrap log_info_console;
+	LogWrap log_info_file;
 	void import_param(const std::string&);
 	void start();
 	void finished();
@@ -168,10 +229,6 @@ public:
 	void try_again(Url_struct*);
 	bool get_url(Thread*);
 	std::string uri_normalize(const Uri::Uri&);
-	void log(const std::string&, const std::string&);
-	void debug(const std::string&);
-	std::queue<Url_struct*> url_queue;
-	bool url_lim_reached = false;
 };
 
 class Thread {
