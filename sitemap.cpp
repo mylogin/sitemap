@@ -409,13 +409,13 @@ void Main::import_param(const std::string& file) {
 		log_error_reply.init(this, "error_reply", {Log::Field::error, Log::Field::url, Log::Field::parent});
 	}
 	if(param_log_ignored_url) {
-		log_ignored_url.init(this, "ignored_url", {Log::Field::url, Log::Field::parent});
+		log_ignored_url.init(this, "ignored_url", {Log::Field::found, Log::Field::parent});
 	}
 	if(param_log_skipped_url) {
 		log_skipped_url.init(this, "skipped_url", {Log::Field::url, Log::Field::parent});
 	}
 	if(param_log_bad_url) {
-		log_bad_url.init(this, "bad_url", {Log::Field::url, Log::Field::parent});
+		log_bad_url.init(this, "bad_url", {Log::Field::found, Log::Field::parent});
 	}
 	if(param_log_other) {
 		log_other.init(this, "other", {Log::Field::error});

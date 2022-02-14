@@ -61,14 +61,6 @@ Example: `url_limit 10000`
 Number of retries if the request fails.  
 Example: `try_limit 5`
 
-#### cell_delim (default: ,)
-Delimeter in log files.  
-Example: `cell_delim ;`
-
-#### debug
-Will write to standard output information about what the program does.  
-Example: `debug`
-
 ### URL filtering.
 Format: `filter (regexp|get|ext) (exclude|include|skip) value`
 
@@ -115,12 +107,31 @@ Examples:
 `xml_tag priority 0.4 ^https?:\/\/www\.sitename\.xx\/contacts\/` value for specific url
 
 ### Logs
-All log files are written in CSV format, the file name is the same as the parameter name without the log_ prefix.
+Log files are written in CSV or XML formats, or displayed if the `type_log console` is set.
+
+#### type_log (values: xml, csv, console; default: csv)
+Log files format.  
+Example: `type_log xml`
+
+#### rewrite_log
+Overwrite log files instead of creating new ones.  
+Example: `rewrite_log`
+
+#### max_log_cnt (default: 100)
+If `rewrite_log` option is not set, sets the maximum number of each log file.  
+Example: `max_log_cnt 1000`
+
+#### csv_separator (default: ,)
+Delimeter in CSV files.  
+Example: `csv_separator ;`
+
+### Log files
+If an option from the list below is set, a corresponding log file will be created. The file name is the same as the parameter name without the log_ prefix. if `type_log console` is set, the content will be displayed with the appropriate label.
 
 Columns description:
 | Column | Description |
 |-|-|
-| id | Identificator of page
+| id | Identificator of page |
 | found | URL found on the page as is |
 | url | Handled URL with all parts (scheme, host etc.) |
 | parent | ID page on which url was found |
@@ -129,9 +140,10 @@ Columns description:
 | try_cnt | Number of retries if the request fails |
 | charset | Charset of the page |
 | error | Text of error |
+| thread | Thread id |
 
 #### log_error_reply
-Urls with status_code != Success and status_code != Redirection, try limits, certificate errors.
+Urls with status_code != Success and status_code != Redirection, try limits, certificate errors.  
 Columns: `error,url,parent`
 
 #### log_redirect
@@ -152,7 +164,8 @@ Columns: `url,parent`
 
 #### log_info
 Verbose log.
-Columns: `id,parent,time,try_cnt,is_html,found,url,charset,error`
+Columns for csv or xml: `id,parent,time,try_cnt,is_html,found,url,charset,error`  
+Columns for console: `thread,id,parent,time,url`
 
 #### log_other
 Other errors and exceptions.  
@@ -173,8 +186,8 @@ Points to a file of CA certificates in PEM format. The file can contain several 
  -----END CERTIFICATE-----
 ```
 sequences. Before, between, and after the certificates text is allowed which can be used e.g. for descriptions of the certificates. (Taken from OpenSSL man).  
-Example: `/path/to/file`
+Example: `ca_cert_file_path /path/to/file`
 
 #### ca_cert_dir_path
 Points to a directory containing CA certificates in PEM format. The files each contain one CA certificate. The files are looked up by the CA subject name hash value, which must hence be available. If more than one CA certificate with the same name hash value exist, the extension must be different (e.g. 9d66eef0.0, 9d66eef0.1 etc). The search is performed in the ordering of the extension number, regardless of other properties of the certificates. Use the c_rehash utility to create the necessary links. (Taken from OpenSSL man). If `ca_cert_file_path` is defined, this option will be ignored.  
-Example: `/path/to/dir`
+Example: `ca_cert_dir_path /path/to/dir`

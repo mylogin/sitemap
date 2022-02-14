@@ -1,21 +1,26 @@
-url https://www.sitename.xx/
-thread 3
+link_check
 sitemap
-xml_name sitemap_all_main
+url https://www.sitename.xx/
 dir /var/www/sitename/sitemap
+thread 3
+subdomain
 filter regexp exclude ^https?:\/\/www\.sitename\.xx\/(articles|news)\/p\d+\/
 filter regexp exclude ^https?:\/\/www\.sitename\.xx\/(articles|news)\/id\d+\/
 filter get exclude sort
 filter ext include php
 filter ext include html
+xml_name sitemap_all
 xml_tag changefreq weekly
 xml_tag changefreq monthly ^https?:\/\/www\.sitename\.xx\/about\/
 xml_tag changefreq monthly ^https?:\/\/www\.sitename\.xx\/contacts\/
 xml_tag priority 0.3
 xml_tag priority 0.7 ^https?:\/\/www\.sitename\.xx\/?$
 xml_tag priority 0.7 ^https?:\/\/www\.sitename\.xx\/special\/
-log_error_reply
+rewrite_log
 log_redirect
-log_parse_url
+log_error_reply
+log_ignored_url
+log_skipped_url
+log_bad_url
 log_other
-debug
+log_info
