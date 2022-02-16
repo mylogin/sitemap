@@ -1,7 +1,8 @@
 link_check
 sitemap
 url https://www.sitename.xx/
-dir /var/www/sitename/sitemap
+sitemap_dir /var/www/sitename/sitemap
+log_dir /var/log/sitemap
 thread 3
 subdomain
 filter regexp exclude ^https?:\/\/www\.sitename\.xx\/(articles|news)\/p\d+\/

@@ -33,8 +33,12 @@ Example: `sitemap`
 First page to parse.  
 Example: `url https://www.sitename.xx/`
 
-#### dir (required)
-Directory where the results will be saved.  
+#### log_dir (required when `type_log console` is not set)
+Directory where the log files will be saved.  
+Example: `dir /var/www/sitename/sitemap`
+
+#### sitemap_dir (required when `sitemap` is set)
+Directory where the sitemap and sitemap index files will be saved.  
 Example: `dir /var/www/sitename/sitemap`
 
 #### thread (default: 1)

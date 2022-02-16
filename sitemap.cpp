@@ -196,10 +196,10 @@ Log::Log(Main* _main, const std::string& _file_name, const std::string& ext, con
 	int file_num = 0;
 	std::string file_name;
 	if(main->rewrite_log) {
-		file_name = main->dir + "/" + _file_name + "." + ext;
+		file_name = main->log_dir + "/" + _file_name + "." + ext;
 	} else {
 		do {
-			file_name = main->dir + "/" + _file_name + (file_num ? "." + std::to_string(file_num) : "") + "." + ext;
+			file_name = main->log_dir + "/" + _file_name + (file_num ? "." + std::to_string(file_num) : "") + "." + ext;
 			if(file_num++ >= main->max_log_cnt) {
 				throw std::runtime_error("Unable to create " + file_name);
 			}
@@ -231,7 +231,7 @@ void Console_Log::write(const std::vector<std::string>& msg) {
 		}
 		std::cout << fields_all[fields[i]] << ": " << msg[i];
 	}
-	std::cout << "\n";
+	std::cout << std::endl;
 }
 
 CSV_Log::CSV_Log(Main* main, const std::string& file_name, const std::vector<Field>& fields): Log(main, file_name, "csv", fields), writer(file, main->csv_separator) {
@@ -335,8 +335,10 @@ void Main::import_param(const std::string& file) {
 				if(index >= 1 && index <= 10) {
 					thread_cnt = index;
 				}
-			} else if(res[0] == "dir") {
-				dir = res[1];
+			} else if(res[0] == "log_dir") {
+				log_dir = res[1];
+			} else if(res[0] == "sitemap_dir") {
+				sitemap_dir = res[1];
 			} else if(res[0] == "sleep") {
 				param_sleep = std::stoi(res[1]);
 			} else if(res[0] == "redirect_limit") {
@@ -399,8 +401,11 @@ void Main::import_param(const std::string& file) {
 			}
 		}
 	}
-	if(dir.empty()) {
-		throw std::runtime_error("Parameter 'dir' is empty");
+	if(log_dir.empty()) {
+		throw std::runtime_error("Parameter 'log_dir' is empty");
+	}
+	if(sitemap_dir.empty()) {
+		throw std::runtime_error("Parameter 'sitemap_dir' is empty");
 	}
 	if(param_log_redirect) {
 		log_redirect.init(this, "redirect", {Log::Field::url, Log::Field::parent});
@@ -425,6 +430,13 @@ void Main::import_param(const std::string& file) {
 			log_info_console.init(this, "info", {Log::Field::thread, Log::Field::id, Log::Field::parent, Log::Field::time, Log::Field::url});
 		} else {
 			log_info_file.init(this, "info", {Log::Field::id, Log::Field::parent, Log::Field::time, Log::Field::try_cnt, Log::Field::is_html, Log::Field::found, Log::Field::url, Log::Field::charset, Log::Field::error});
+		}
+	}
+	if(sitemap) {
+		std::string file_name = sitemap_dir + "/" + xml_name + "1.xml";
+		sitemap_file.open(file_name, std::ofstream::out | std::ofstream::binary | std::ofstream::trunc);
+		if(!sitemap_file.is_open()) {
+			throw std::runtime_error("Can not open " + file_name);
 		}
 	}
 }
@@ -687,22 +699,22 @@ void Main::finished() {
 		std::streamoff wrap_length = 0;
 		std::streamoff tag_length = 0;
 		std::streamoff pos = 0;
-		std::ofstream out(dir + "/" + xml_name + std::to_string(i) + ".xml", std::ofstream::out | std::ofstream::binary | std::ofstream::trunc);
 		std::streamoff outpos = 0;
-		XML_writer writer(out);
-		if(!out.is_open()) {
-			throw std::runtime_error("Can not open output file");
-		}
+		XML_writer writer(sitemap_file);
 		writer.write_start_doc();
 		writer.write_start_el("urlset");
 		writer.write_attr("xmlns", "http://www.sitemaps.org/schemas/sitemap/0.9");
 		writer.write_end_el();
 		writer.write_end_doc();
 		writer.flush();
-		wrap_length = out.tellp();
+		wrap_length = sitemap_file.tellp();
 		wrap_length += 1;
-		out.close();
-		out.open(dir + "/" + xml_name + std::to_string(i) + ".xml", std::ofstream::out | std::ofstream::binary | std::ofstream::trunc);
+		sitemap_file.close();
+		std::string file_name(sitemap_dir + "/" + xml_name + std::to_string(i) + ".xml");
+		sitemap_file.open(file_name, std::ofstream::out | std::ofstream::binary | std::ofstream::trunc);
+		if(!sitemap_file.is_open()) {
+			throw std::runtime_error("Can not open " + file_name);
+		}
 		writer.write_start_doc();
 		writer.write_start_el("urlset");
 		writer.write_attr("xmlns", "http://www.sitemaps.org/schemas/sitemap/0.9");
@@ -734,14 +746,18 @@ void Main::finished() {
 				writer.write_end_el();
 				writer.write_end_doc();
 				writer.flush();
-				out.close();
-				out.open(dir + "/" + xml_name + std::to_string(i) + ".xml", std::ofstream::out | std::ofstream::binary | std::ofstream::trunc);
+				sitemap_file.close();
+				file_name = sitemap_dir + "/" + xml_name + std::to_string(i) + ".xml";
+				sitemap_file.open(file_name, std::ofstream::out | std::ofstream::binary | std::ofstream::trunc);
+				if(!sitemap_file.is_open()) {
+					throw std::runtime_error("Can not open " + file_name);
+				}
 				writer.write_start_doc();
 				writer.write_start_el("urlset");
 				writer.write_attr("xmlns", "http://www.sitemaps.org/schemas/sitemap/0.9");
 			}
 			if(!tag_length) {
-				outpos = out.tellp();
+				outpos = sitemap_file.tellp();
 			}
 			writer.write_start_el("url");
 			for(auto it1 = tags.begin(); it1 != tags.end(); ++it1) {
@@ -751,7 +767,7 @@ void Main::finished() {
 			}
 			writer.write_end_el();
 			if(!tag_length) {
-				tag_length = out.tellp() - outpos;
+				tag_length = sitemap_file.tellp() - outpos;
 				tag_length -= str_size;
 				tag_length -= 1;
 			}
@@ -761,9 +777,13 @@ void Main::finished() {
 		writer.write_end_el();
 		writer.write_end_doc();
 		writer.flush();
-		out.close();
+		sitemap_file.close();
 		if(!xml_index_name.empty()) {
-			out.open(dir + "/" + xml_index_name + ".xml", std::ofstream::out | std::ofstream::binary | std::ofstream::trunc);
+			file_name = sitemap_dir + "/" + xml_index_name + ".xml";
+			sitemap_file.open(file_name, std::ofstream::out | std::ofstream::binary | std::ofstream::trunc);
+			if(!sitemap_file.is_open()) {
+				throw std::runtime_error("Can not open " + file_name);
+			}
 			writer.write_start_doc();
 			writer.write_start_el("sitemapindex");
 			writer.write_attr("xmlns", "http://www.sitemaps.org/schemas/sitemap/0.9");
@@ -777,7 +797,7 @@ void Main::finished() {
 			writer.write_end_el();
 			writer.write_end_doc();
 			writer.flush();
-			out.close();
+			sitemap_file.close();
 		}
 	}
 }

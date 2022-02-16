@@ -173,7 +173,8 @@ class Thread;
 class Main {
 public:
 	// setting
-	std::string dir;
+	std::string log_dir;
+	std::string sitemap_dir;
 	std::string param_url;
 	std::string xml_name = "sitemap";
 	std::string xml_index_name;
@@ -221,6 +222,7 @@ public:
 	LogWrap log_other;
 	LogWrap log_info_console;
 	LogWrap log_info_file;
+	std::ofstream sitemap_file;
 	void import_param(const std::string&);
 	void start();
 	void finished();
