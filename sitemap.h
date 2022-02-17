@@ -202,6 +202,7 @@ public:
 	std::vector<Filter> param_filter;
 	int max_log_cnt = 100;
 	bool rewrite_log = false;
+	std::string param_interface;
 
 	bool running = true;
 	std::multimap<std::string, Xml_tag> param_xml_tag;

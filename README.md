@@ -65,6 +65,10 @@ Example: `url_limit 10000`
 Number of retries if the request fails.  
 Example: `try_limit 5`
 
+#### bind_interface (values: IP address, Interface name or host name)
+Use a specific network interface (is not available on Windows).  
+Example: `bind_interface eth0`
+
 ### URL filtering.
 Format: `filter (regexp|get|ext) (exclude|include|skip) value`
 

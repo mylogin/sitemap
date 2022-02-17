@@ -361,6 +361,8 @@ void Main::import_param(const std::string& file) {
 				type_log = res[1];
 			} else if(res[0] == "max_log_cnt") {
 				max_log_cnt = std::stoi(res[1]);
+			} else if(res[0] == "bind_interface") {
+				param_interface = res[1];
 			}
 		} else if(res[0] == "filter" && res.size() == 4) {
 			Filter f;
@@ -921,6 +923,9 @@ void Thread::load() {
 			std::string scheme_host(m_url->ssl ? "https" : "http");
 			scheme_host += "://" + m_url->host;
 			cli = std::make_shared<httplib::Client>(scheme_host);
+			if(!main->param_interface.empty()) {
+				cli->set_interface(main->param_interface.data());
+			}
 			if(m_url->ssl) {
 				cli->enable_server_certificate_verification(main->cert_verification);
 				if(main->cert_verification) {
