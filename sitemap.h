@@ -6,15 +6,13 @@
 #include <fstream>
 #include <sstream>
 #include <thread>
-#include <set>
-#include <map>
+#include <unordered_map>
 #include <vector>
 #include <queue>
 #include <stack>
 #include <mutex>
 #include <condition_variable>
 #include <string>
-#include <iostream>
 #include <functional>
 #include <algorithm>
 
@@ -84,7 +82,7 @@ class Main;
 
 class Log {
 public:
-	enum Field: int {id, found, url, parent, time, is_html, try_cnt, charset, error, thread};
+	enum Field: int {id, found, url, parent, id_parent, time, is_html, try_cnt, charset, error, thread, cnt};
 	virtual void write(const std::vector<std::string>&) {}
 	Log(Main*, const std::string&, const std::string&, const std::vector<Field>&);
 	~Log();
@@ -93,7 +91,7 @@ protected:
 	std::ofstream file;
 	std::string file_name;
 	const std::vector<Field> fields;
-	const std::vector<std::string> fields_all{"id", "found", "url", "parent", "time", "is_html", "try_cnt", "charset", "error", "thread"};
+	const std::vector<std::string> fields_all{"id", "found", "url", "parent", "id_parent", "time", "is_html", "try_cnt", "charset", "error", "thread", "cnt"};
 };
 
 class Console_Log: public Log {
@@ -157,6 +155,7 @@ struct Url_struct {
 	size_t redirect_cnt = 0;
 	url_handle_t handle = url_handle_t::query;
 	std::string error;
+	int cnt = 1;
 };
 
 struct Filter {
@@ -211,17 +210,23 @@ public:
 	std::mutex mutex;
 	std::mutex mutex_log;
 	int thread_work = 0;
-	std::map<std::string, std::unique_ptr<Url_struct>> url_all;
+	std::unordered_map<std::string, int> url_unique;
+	std::vector<std::unique_ptr<Url_struct>> url_all;
 	std::queue<Url_struct*> url_queue;
 	bool url_lim_reached = false;
-	LogWrap log_redirect;
-	LogWrap log_error_reply;
-	LogWrap log_ignored_url;
-	LogWrap log_skipped_url;
-	LogWrap log_bad_url;
-	LogWrap log_other;
+	LogWrap log_redirect_console;
+	LogWrap log_redirect_file;
+	LogWrap log_error_reply_console;
+	LogWrap log_error_reply_file;
+	LogWrap log_ignored_url_console;
+	LogWrap log_ignored_url_file;
+	LogWrap log_skipped_url_console;
+	LogWrap log_skipped_url_file;
+	LogWrap log_bad_url_console;
+	LogWrap log_bad_url_file;
 	LogWrap log_info_console;
 	LogWrap log_info_file;
+	LogWrap log_other;
 	std::ofstream sitemap_file;
 	void import_param(const std::string&);
 	void start();
@@ -230,6 +235,7 @@ public:
 	bool set_url(std::unique_ptr<Url_struct>&);
 	void try_again(Url_struct*);
 	bool get_url(Thread*);
+	std::string get_resolved(int);
 	std::string uri_normalize(const Uri::Uri&);
 };
 

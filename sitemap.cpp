@@ -408,28 +408,48 @@ void Main::import_param(const std::string& file) {
 		throw std::runtime_error("Parameter 'sitemap_dir' is empty");
 	}
 	if(param_log_redirect) {
-		log_redirect.init(this, "redirect", {Log::Field::url, Log::Field::parent});
+		if(type_log == "console") {
+			log_redirect_console.init(this, "redirect", {Log::Field::url, Log::Field::parent});
+		} else {
+			log_redirect_file.init(this, "redirect", {Log::Field::url, Log::Field::id_parent});
+		}
 	}
 	if(param_log_error_reply) {
-		log_error_reply.init(this, "error_reply", {Log::Field::error, Log::Field::url, Log::Field::parent});
+		if(type_log == "console") {
+			log_error_reply_console.init(this, "error_reply", {Log::Field::error, Log::Field::url, Log::Field::parent});
+		} else {
+			log_error_reply_file.init(this, "error_reply", {Log::Field::error, Log::Field::url, Log::Field::id_parent});
+		}
 	}
 	if(param_log_ignored_url) {
-		log_ignored_url.init(this, "ignored_url", {Log::Field::found, Log::Field::parent});
+		if(type_log == "console") {
+			log_ignored_url_console.init(this, "ignored_url", {Log::Field::found, Log::Field::parent});
+		} else {
+			log_ignored_url_file.init(this, "ignored_url", {Log::Field::found, Log::Field::id_parent});
+		}
 	}
 	if(param_log_skipped_url) {
-		log_skipped_url.init(this, "skipped_url", {Log::Field::url, Log::Field::parent});
+		if(type_log == "console") {
+			log_skipped_url_console.init(this, "skipped_url", {Log::Field::url, Log::Field::parent});
+		} else {
+			log_skipped_url_file.init(this, "skipped_url", {Log::Field::url, Log::Field::id_parent});
+		}
 	}
 	if(param_log_bad_url) {
-		log_bad_url.init(this, "bad_url", {Log::Field::found, Log::Field::parent});
+		if(type_log == "console") {
+			log_bad_url_console.init(this, "bad_url", {Log::Field::found, Log::Field::parent});
+		} else {
+			log_bad_url_file.init(this, "bad_url", {Log::Field::found, Log::Field::id_parent});
+		}
 	}
 	if(param_log_other) {
 		log_other.init(this, "other", {Log::Field::error});
 	}
 	if(param_log_info) {
 		if(type_log == "console") {
-			log_info_console.init(this, "info", {Log::Field::thread, Log::Field::id, Log::Field::parent, Log::Field::time, Log::Field::url});
+			log_info_console.init(this, "info", {Log::Field::thread, Log::Field::time, Log::Field::url, Log::Field::parent});
 		} else {
-			log_info_file.init(this, "info", {Log::Field::id, Log::Field::parent, Log::Field::time, Log::Field::try_cnt, Log::Field::is_html, Log::Field::found, Log::Field::url, Log::Field::charset, Log::Field::error});
+			log_info_file.init(this, "info", {Log::Field::id, Log::Field::parent, Log::Field::time, Log::Field::try_cnt, Log::Field::cnt, Log::Field::is_html, Log::Field::found, Log::Field::url, Log::Field::charset, Log::Field::error});
 		}
 	}
 	if(sitemap) {
@@ -511,20 +531,27 @@ bool Main::set_url(std::unique_ptr<Url_struct>& url) {
 		}
 		return false;
 	}
-	auto it = url_all.find(url->normalize);
-	if(it == url_all.end()) {
+	auto it = url_unique.find(url->normalize);
+	if(it == url_unique.end()) {
+		url_unique[url->normalize] = url_all.size();
 		url->id = url_all.size() + 1;
 		if(url->handle == url_handle_t::none) {
-			if(log_skipped_url) {
-				log_skipped_url->write({url->resolved, std::to_string(url->parent)});
+			if(log_skipped_url_file) {
+				log_skipped_url_file->write({url->resolved, std::to_string(url->parent)});
 			}
+			if(log_skipped_url_console) {
+				log_skipped_url_console->write({url->resolved, get_resolved(url->parent)});
+			}
+			url_all.push_back(std::move(url));
 		} else {
 			url_queue.push(url.get());
+			url_all.push_back(std::move(url));
+			lk.unlock();
+			cond.notify_one();
 		}
-		url_all.emplace(url->normalize, std::move(url));
-		lk.unlock();
-		cond.notify_one();
 		return true;
+	} else {
+		url_all[it->second]->cnt++;
 	}
 	return false;
 }
@@ -570,6 +597,14 @@ bool Main::get_url(Thread* t) {
 	return true;
 }
 
+std::string Main::get_resolved(int i) {
+	if(i <= 0) {
+		return "";
+	}
+	std::unique_lock<std::mutex> lk(mutex);
+	return url_all[i - 1]->resolved;
+}
+
 bool Main::handle_url(Url_struct* url_new, bool filter) {
 
 	std::string found = std::regex_replace(url_new->found, std::regex(R"(^\s+|\s+$)"), std::string(""));
@@ -578,14 +613,20 @@ bool Main::handle_url(Url_struct* url_new, bool filter) {
 	Uri::Uri b;
 	Uri::Uri d;
 	if(!b.ParseFromString(url_new->base_href)) {
-		if(log_bad_url) {
-			log_bad_url->write({url_new->base_href, std::to_string(url_new->parent)});
+		if(log_bad_url_file) {
+			log_bad_url_file->write({url_new->base_href, std::to_string(url_new->parent)});
+		}
+		if(log_bad_url_console) {
+			log_bad_url_console->write({url_new->base_href, get_resolved(url_new->parent)});
 		}
 		return false;
 	}
 	if(!d.ParseFromString(found)) {
-		if(log_bad_url) {
-			log_bad_url->write({url_new->found, std::to_string(url_new->parent)});
+		if(log_bad_url_file) {
+			log_bad_url_file->write({url_new->found, std::to_string(url_new->parent)});
+		}
+		if(log_bad_url_console) {
+			log_bad_url_console->write({url_new->found, get_resolved(url_new->parent)});
 		}
 		return false;
 	}
@@ -677,15 +718,16 @@ void Main::finished() {
 	if(log_info_file) {
 		for(auto it = url_all.begin(); it != url_all.end(); ++it) {
 			log_info_file->write({
-				std::to_string(it->second->id),
-				std::to_string(it->second->parent),
-				std::to_string(it->second->time),
-				std::to_string(it->second->try_cnt),
-				std::to_string(it->second->is_html),
-				it->second->found,
-				it->second->resolved,
-				it->second->charset,
-				it->second->error
+				std::to_string((*it)->id),
+				std::to_string((*it)->parent),
+				std::to_string((*it)->time),
+				std::to_string((*it)->try_cnt),
+				std::to_string((*it)->cnt),
+				std::to_string((*it)->is_html),
+				(*it)->found,
+				(*it)->resolved,
+				(*it)->charset,
+				(*it)->error
 			});
 		}
 	}
@@ -719,21 +761,21 @@ void Main::finished() {
 		writer.write_start_el("urlset");
 		writer.write_attr("xmlns", "http://www.sitemaps.org/schemas/sitemap/0.9");
 		for(auto it = url_all.begin(); it != url_all.end(); ++it) {
-			if(it->second->handle == url_handle_t::query) {
+			if((*it)->handle == url_handle_t::query) {
 				continue;
 			}
-			if(it->second->handle == url_handle_t::query_parse && !it->second->is_html) {
+			if((*it)->handle == url_handle_t::query_parse && !(*it)->is_html) {
 				continue;
 			}
 			int str_size = 0;
 			std::vector<std::pair<std::string, std::string>> tags;
-			tags.emplace_back("loc", writer.escape_str(it->second->resolved));
+			tags.emplace_back("loc", writer.escape_str((*it)->resolved));
 			str_size += tags.back().second.size();
 			for(auto it1 = param_xml_tag.begin(); it1 != param_xml_tag.end(); ++it1) {
 				tags.emplace_back(it1->first, writer.escape_str(it1->second.def));
 				for(auto it2 = it1->second.regexp.begin() ; it2 != it1->second.regexp.end(); ++it2) {
 					std::regex reg(it2->second, std::regex_constants::ECMAScript | std::regex_constants::icase);
-					if(std::regex_search(it->second->resolved, reg)) {
+					if(std::regex_search((*it)->resolved, reg)) {
 						tags.back().second = writer.escape_str(it2->first);
 					}
 				}
@@ -867,8 +909,11 @@ void Thread::load() {
 			}
 #ifndef CPPHTTPLIB_OPENSSL_SUPPORT
 			if(m_url->ssl) {
-				if(main->log_error_reply) {
-					main->log_error_reply->write({"HTTPS not supported", m_url->resolved, std::to_string(m_url->parent)});
+				if(main->log_error_reply_file) {
+					main->log_error_reply_file->write({"HTTPS not supported", m_url->resolved, std::to_string(m_url->parent)});
+				}
+				if(main->log_error_reply_console) {
+					main->log_error_reply_console->write({"HTTPS not supported", m_url->resolved, main->get_resolved(m_url->parent)});
 				}
 				continue;
 			}
@@ -897,11 +942,11 @@ void Thread::load() {
 			m_url->time += time;
 			m_url->try_cnt++;
 			if(main->log_info_console) {
-				main->log_info_console->write({std::to_string(id), std::to_string(m_url->id), std::to_string(m_url->parent), std::to_string(time), m_url->resolved});
+				main->log_info_console->write({std::to_string(id), std::to_string(time), m_url->resolved, main->get_resolved(m_url->parent)});
 			}
 			http_finished();
 			if(main->param_sleep) {
-				std::this_thread::sleep_for(std::chrono::seconds(main->param_sleep));
+				std::this_thread::sleep_for(std::chrono::milliseconds(main->param_sleep));
 			}
 		}
 	} catch(...) {
@@ -921,8 +966,11 @@ void Thread::http_finished() {
 			main->try_again(m_url);
 		} else {
 			m_url->error = httplib::to_string(reply.error());
-			if(main->log_error_reply) {
-				main->log_error_reply->write({m_url->error, m_url->resolved, std::to_string(m_url->parent)});
+			if(main->log_error_reply_file) {
+				main->log_error_reply_file->write({m_url->error, m_url->resolved, std::to_string(m_url->parent)});
+			}
+			if(main->log_error_reply_console) {
+				main->log_error_reply_console->write({m_url->error, m_url->resolved, main->get_resolved(m_url->parent)});
 			}
 		}
 		return;
@@ -931,8 +979,11 @@ void Thread::http_finished() {
 		auto res = cli->get_openssl_verify_result();
 		if(res != X509_V_OK) {
 			m_url->error = std::string("Certificate verification error: ") + X509_verify_cert_error_string(res);
-			if(main->log_error_reply) {
-				main->log_error_reply->write({m_url->error, m_url->resolved, std::to_string(m_url->parent)});
+			if(main->log_error_reply_file) {
+				main->log_error_reply_file->write({m_url->error, m_url->resolved, std::to_string(m_url->parent)});
+			}
+			if(main->log_error_reply_console) {
+				main->log_error_reply_console->write({m_url->error, m_url->resolved, main->get_resolved(m_url->parent)});
 			}
 			return;
 		}
@@ -942,12 +993,19 @@ void Thread::http_finished() {
 		return;
 	}
 	if(reply->status >= 300 && reply->status < 400) {
-		if(main->log_redirect) {
-			main->log_redirect->write({m_url->resolved, std::to_string(m_url->parent)});
+		m_url->error = "Redirect";
+		if(main->log_redirect_file) {
+			main->log_redirect_file->write({m_url->resolved, std::to_string(m_url->parent)});
+		}
+		if(main->log_redirect_console) {
+			main->log_redirect_console->write({m_url->resolved, main->get_resolved(m_url->parent)});
 		}
 		if(m_url->redirect_cnt > main->redirect_limit) {
-			if(main->log_error_reply) {
-				main->log_error_reply->write({"Redirect limit reached", m_url->resolved, std::to_string(m_url->parent)});
+			if(main->log_error_reply_file) {
+				main->log_error_reply_file->write({"Redirect limit reached", m_url->resolved, std::to_string(m_url->parent)});
+			}
+			if(main->log_error_reply_console) {
+				main->log_error_reply_console->write({"Redirect limit reached", m_url->resolved, main->get_resolved(m_url->parent)});
 			}
 			return;
 		}
@@ -962,8 +1020,11 @@ void Thread::http_finished() {
 	}
 	if(reply->status != 200) {
 		m_url->error = "Code:" + std::to_string(reply->status);
-		if(main->log_error_reply) {
-			main->log_error_reply->write({m_url->error, m_url->resolved, std::to_string(m_url->parent)});
+		if(main->log_error_reply_file) {
+			main->log_error_reply_file->write({m_url->error, m_url->resolved, std::to_string(m_url->parent)});
+		}
+		if(main->log_error_reply_console) {
+			main->log_error_reply_console->write({m_url->error, m_url->resolved, main->get_resolved(m_url->parent)});
 		}
 		return;
 	}
@@ -971,6 +1032,13 @@ void Thread::http_finished() {
 		return;
 	}
 	if(!reply->has_header("Content-Type")) {
+		m_url->error = "Content-Type empty";
+		if(main->log_error_reply_file) {
+			main->log_error_reply_file->write({m_url->error, m_url->resolved, std::to_string(m_url->parent)});
+		}
+		if(main->log_error_reply_console) {
+			main->log_error_reply_console->write({m_url->error, m_url->resolved, main->get_resolved(m_url->parent)});
+		}
 		return;
 	}
 	// check html
@@ -992,8 +1060,13 @@ void Thread::set_url(std::unique_ptr<Url_struct>& new_url) {
 	new_url->base_href = m_url->base_href;
 	if(main->handle_url(new_url.get())) {
 		main->set_url(new_url);
-	} else if(main->log_ignored_url) {
-		main->log_ignored_url->write({new_url->found, std::to_string(new_url->parent)});
+	} else {
+		if(main->log_ignored_url_file) {
+			main->log_ignored_url_file->write({new_url->found, std::to_string(new_url->parent)});
+		}
+		if(main->log_ignored_url_console) {
+			main->log_ignored_url_console->write({new_url->found, main->get_resolved(new_url->parent)});
+		}
 	}
 }
 

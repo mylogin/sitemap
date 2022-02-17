@@ -46,8 +46,8 @@ Number of concurrent requests.
 Example: `thread 3`
 
 #### sleep (default: 0)
-Number of seconds to wait before next request.  
-Example: `sleep 1`
+Number of milliseconds to wait before next request.  
+Example: `sleep 100`
 
 #### subdomain
 Subdomains will be processed, otherwise only the domain from parameter **url** will be processed.  
@@ -138,38 +138,45 @@ Columns description:
 | id | Identificator of page |
 | found | URL found on the page as is |
 | url | Handled URL with all parts (scheme, host etc.) |
-| parent | ID page on which url was found |
+| id_parent | ID page where the url was found |
+| parent | Handled URL of the page where the URL was found |
 | time | HTTP response time |
 | is_html | Is page content is html |
 | try_cnt | Number of retries if the request fails |
+| cnt | Number of similar URLs found during the crawl |
 | charset | Charset of the page |
 | error | Text of error |
 | thread | Thread id |
 
 #### log_error_reply
 Urls with status_code != Success and status_code != Redirection, try limits, certificate errors.  
-Columns: `error,url,parent`
+Columns (csv, xml): `error,url,id_parent`  
+Columns (console): `error,url,parent`
 
 #### log_redirect
 Urls that returned redirect status.  
-Columns: `url,parent`
+Columns (csv, xml): `url,id_parent`  
+Columns (console): `url,parent`
 
 #### log_bad_url
 Urls with bad format.  
-Columns: `found,parent`
+Columns (csv, xml): `found,id_parent`  
+Columns (console): `found,parent`
 
 #### log_ignored_url
 Urls that did not pass custom filters.  
-Columns: `found,parent`
+Columns (csv, xml): `found,id_parent`  
+Columns (console): `found,parent`
 
 #### log_skipped_url
 Urls whose content is not requested.  
-Columns: `url,parent`
+Columns (csv, xml): `url,id_parent`  
+Columns (console): `url,parent`
 
 #### log_info
-Verbose log.
-Columns for csv or xml: `id,parent,time,try_cnt,is_html,found,url,charset,error`  
-Columns for console: `thread,id,parent,time,url`
+Verbose log.  
+Columns (csv, xml): `id,parent,time,try_cnt,cnt,is_html,found,url,charset,error`  
+Columns (console): `thread,time,url,parent`
 
 #### log_other
 Other errors and exceptions.  
