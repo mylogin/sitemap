@@ -23,5 +23,6 @@ log_error_reply
 log_ignored_url
 log_skipped_url
 log_bad_url
+log_bad_html
 log_other
 log_info

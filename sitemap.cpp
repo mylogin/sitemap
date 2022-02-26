@@ -308,6 +308,8 @@ void Main::import_param(const std::string& file) {
 				param_log_ignored_url = true;
 			} else if(res[0] == "log_skipped_url") {
 				param_log_skipped_url = true;
+			} else if(res[0] == "log_bad_html") {
+				param_log_bad_html = true;
 			} else if(res[0] == "log_bad_url") {
 				param_log_bad_url = true;
 			} else if(res[0] == "log_other") {
@@ -435,6 +437,13 @@ void Main::import_param(const std::string& file) {
 			log_skipped_url_console.init(this, "skipped_url", {Log::Field::url, Log::Field::parent});
 		} else {
 			log_skipped_url_file.init(this, "skipped_url", {Log::Field::url, Log::Field::id_parent});
+		}
+	}
+	if(param_log_bad_html) {
+		if(type_log == "console") {
+			log_bad_html_console.init(this, "bad_html", {Log::Field::error, Log::Field::url});
+		} else {
+			log_bad_html_file.init(this, "bad_html", {Log::Field::error, Log::Field::id});
 		}
 	}
 	if(param_log_bad_url) {
@@ -889,6 +898,25 @@ void Thread::start() {
 			}
 		}
 	});
+	if(main->param_log_bad_html) {
+		p.set_callback([this](html::err_t e, html::node& n) {
+			std::string msg;
+			if(e == html::err_t::tag_not_closed) {
+				html::node* current = &n;
+				while(current->get_parent()) {
+					msg.insert(0, " " + current->tag_name);
+					current = current->get_parent();
+				}
+				msg.insert(0, "Unclosed tag:");
+			}
+			if(main->log_bad_html_file) {
+				main->log_bad_html_file->write({msg, std::to_string(m_url->id)});
+			}
+			if(main->log_bad_html_console) {
+				main->log_bad_html_console->write({msg, m_url->resolved});
+			}
+		});
+	}
 	uthread.reset(new std::thread(&Thread::load, this));
 }
 

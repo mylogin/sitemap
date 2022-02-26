@@ -162,6 +162,11 @@ Urls that returned redirect status.
 Columns (csv, xml): `url,id_parent`  
 Columns (console): `url,parent`
 
+#### log_bad_html
+HTML markup errors. Currently only checking for unclosed tags is supported.  
+Columns (csv, xml): `url,id`  
+Columns (console): `url,url`
+
 #### log_bad_url
 Urls with bad format.  
 Columns (csv, xml): `found,id_parent`  

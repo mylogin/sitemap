@@ -183,6 +183,7 @@ public:
 	bool param_log_error_reply = false;
 	bool param_log_ignored_url = false;
 	bool param_log_skipped_url = false;
+	bool param_log_bad_html = false;
 	bool param_log_bad_url = false;
 	bool param_log_other = false;
 	bool param_log_info = false;
@@ -223,6 +224,8 @@ public:
 	LogWrap log_ignored_url_file;
 	LogWrap log_skipped_url_console;
 	LogWrap log_skipped_url_file;
+	LogWrap log_bad_html_console;
+	LogWrap log_bad_html_file;
 	LogWrap log_bad_url_console;
 	LogWrap log_bad_url_file;
 	LogWrap log_info_console;
