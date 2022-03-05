@@ -9,8 +9,8 @@
 ## Features
 * Multi-thread support.
 * URL filtering with regular expressions.
-* Support for many HTML elements and attributes.
-* Support for relative URLs with `<base href>`.
+* Support for many HTML elements and attributes, relative URLs.
+* Validating HTML markup.
 * Create sitemap and sitemap index files.
 * Automatically creates new sitemap files if limits is reached.
 * Configurable retries count and timeouts.

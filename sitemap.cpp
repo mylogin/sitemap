@@ -328,6 +328,9 @@ void Main::import_param(const std::string& file) {
 		} else if(res.size() == 2) {
 			if(res[0] == "url") {
 				param_url = res[1];
+				if(!uri.ParseFromString(param_url)) {
+					throw std::runtime_error("Parameter 'url' is not valid");
+				}
 			} else if(res[0] == "xml_name") {
 				xml_name = res[1];
 			} else if(res[0] == "xml_index_name") {
@@ -404,6 +407,9 @@ void Main::import_param(const std::string& file) {
 			   it->second.regexp.emplace_back(res[2], res[3]);
 			}
 		}
+	}
+	if(param_url.empty()) {
+		throw std::runtime_error("Parameter 'url' is empty");
 	}
 	if(log_dir.empty()) {
 		throw std::runtime_error("Parameter 'log_dir' is empty");
@@ -492,9 +498,6 @@ std::string Main::uri_normalize(const Uri::Uri& uri) {
 }
 
 void Main::start() {
-	if(!uri.ParseFromString(param_url)) {
-		throw std::runtime_error("Parameter 'url' is not valid");
-	}
 	std::unique_ptr<Url_struct> url(new Url_struct);
 	url->found = param_url;
 	url->base_href = param_url;
@@ -983,9 +986,9 @@ void Thread::load() {
 			}
 		}
 	} catch(...) {
-		exc_ptr = std::current_exception();
 		{
 			std::lock_guard<std::mutex> lk(main->mutex);
+			exc_ptr = std::current_exception();
 			main->running = false;
 		}
 		main->cond.notify_all();
@@ -1157,7 +1160,7 @@ int main(int argc, char *argv[]) {
 			std::rethrow_exception(exc_ptr);
 		}
 		c.finished();
-	} catch (std::exception& e) {
+	} catch (const std::exception& e) {
 		if(c.log_other) {
 			c.log_other->write({e.what()});
 		} else {

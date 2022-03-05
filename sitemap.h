@@ -83,9 +83,9 @@ class Main;
 class Log {
 public:
 	enum Field: int {id, found, url, parent, id_parent, time, is_html, try_cnt, charset, error, thread, cnt};
-	virtual void write(const std::vector<std::string>&) {}
+	virtual void write(const std::vector<std::string>&) = 0;
 	Log(Main*, const std::string&, const std::string&, const std::vector<Field>&);
-	~Log();
+	virtual ~Log();
 protected:
 	Main* main;
 	std::ofstream file;
@@ -171,6 +171,16 @@ class Thread;
 
 class Main {
 public:
+	void import_param(const std::string&);
+	void start();
+	void finished();
+	bool handle_url(Url_struct*, bool filter = true);
+	bool set_url(std::unique_ptr<Url_struct>&);
+	void try_again(Url_struct*);
+	bool get_url(Thread*);
+	std::string get_resolved(int);
+	std::string uri_normalize(const Uri::Uri&);
+
 	// setting
 	std::string log_dir;
 	std::string sitemap_dir;
@@ -204,9 +214,9 @@ public:
 	int max_log_cnt = 100;
 	bool rewrite_log = false;
 	std::string param_interface;
+	std::multimap<std::string, Xml_tag> param_xml_tag;
 
 	bool running = true;
-	std::multimap<std::string, Xml_tag> param_xml_tag;
 	Uri::Uri uri;
 	std::condition_variable cond;
 	std::mutex mutex;
@@ -232,30 +242,22 @@ public:
 	LogWrap log_info_file;
 	LogWrap log_other;
 	std::ofstream sitemap_file;
-	void import_param(const std::string&);
-	void start();
-	void finished();
-	bool handle_url(Url_struct*, bool filter = true);
-	bool set_url(std::unique_ptr<Url_struct>&);
-	void try_again(Url_struct*);
-	bool get_url(Thread*);
-	std::string get_resolved(int);
-	std::string uri_normalize(const Uri::Uri&);
 };
 
 class Thread {
 public:
 	Thread(int id, Main* main) : id(id), main(main) {}
-	bool suspend = false;
-	int id;
-	Main* main;
-	Url_struct* m_url;
-	html::parser p;
-	void load();
-	void http_finished();
-	void set_url(std::unique_ptr<Url_struct>&);
 	void start();
 	void join();
+	void set_url(std::unique_ptr<Url_struct>&);
+	bool suspend = false;
+	Url_struct* m_url = nullptr;
+private:
+	void load();
+	void http_finished();
+	int id;
+	Main* main = nullptr;
+	html::parser p;
 	std::shared_ptr<httplib::Client> cli;
 	std::shared_ptr<httplib::Result> result;
 	std::unique_ptr<std::thread> uthread = nullptr;
