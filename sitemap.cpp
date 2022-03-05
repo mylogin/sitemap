@@ -426,9 +426,9 @@ void Main::import_param(const std::string& file) {
 	}
 	if(param_log_error_reply) {
 		if(type_log == "console") {
-			log_error_reply_console.init(this, "error_reply", {Log::Field::error, Log::Field::url, Log::Field::parent});
+			log_error_reply_console.init(this, "error_reply", {Log::Field::msg, Log::Field::url, Log::Field::parent});
 		} else {
-			log_error_reply_file.init(this, "error_reply", {Log::Field::error, Log::Field::url, Log::Field::id_parent});
+			log_error_reply_file.init(this, "error_reply", {Log::Field::msg, Log::Field::url, Log::Field::id_parent});
 		}
 	}
 	if(param_log_ignored_url) {
@@ -447,9 +447,9 @@ void Main::import_param(const std::string& file) {
 	}
 	if(param_log_bad_html) {
 		if(type_log == "console") {
-			log_bad_html_console.init(this, "bad_html", {Log::Field::error, Log::Field::url});
+			log_bad_html_console.init(this, "bad_html", {Log::Field::msg, Log::Field::url});
 		} else {
-			log_bad_html_file.init(this, "bad_html", {Log::Field::error, Log::Field::id});
+			log_bad_html_file.init(this, "bad_html", {Log::Field::msg, Log::Field::id});
 		}
 	}
 	if(param_log_bad_url) {
@@ -460,13 +460,13 @@ void Main::import_param(const std::string& file) {
 		}
 	}
 	if(param_log_other) {
-		log_other.init(this, "other", {Log::Field::error});
+		log_other.init(this, "other", {Log::Field::msg});
 	}
 	if(param_log_info) {
 		if(type_log == "console") {
 			log_info_console.init(this, "info", {Log::Field::thread, Log::Field::time, Log::Field::url, Log::Field::parent});
 		} else {
-			log_info_file.init(this, "info", {Log::Field::id, Log::Field::parent, Log::Field::time, Log::Field::try_cnt, Log::Field::cnt, Log::Field::is_html, Log::Field::found, Log::Field::url, Log::Field::charset, Log::Field::error});
+			log_info_file.init(this, "info", {Log::Field::id, Log::Field::parent, Log::Field::time, Log::Field::try_cnt, Log::Field::cnt, Log::Field::is_html, Log::Field::found, Log::Field::url, Log::Field::charset, Log::Field::msg});
 		}
 	}
 	if(sitemap) {
@@ -1154,12 +1154,19 @@ int main(int argc, char *argv[]) {
 		if(argc != 2) {
 			throw std::runtime_error("Specify setting file");
 		}
+		Timer tmr;
 		c.import_param(argv[1]);
 		c.start();
 		if(exc_ptr) {
 			std::rethrow_exception(exc_ptr);
 		}
 		c.finished();
+		auto elapsed = "Elapsed time: " + std::to_string(tmr.elapsed());
+		if(c.log_other) {
+			c.log_other->write({elapsed});
+		} else {
+			std::cout << elapsed << std::endl;
+		}
 	} catch (const std::exception& e) {
 		if(c.log_other) {
 			c.log_other->write({e.what()});

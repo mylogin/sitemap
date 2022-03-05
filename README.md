@@ -149,13 +149,13 @@ Columns description:
 | try_cnt | Number of retries if the request fails |
 | cnt | Number of similar URLs found during the crawl |
 | charset | Charset of the page |
-| error | Text of error |
 | thread | Thread id |
+| msg | Errors, exceptions and info messages |
 
 #### log_error_reply
 Urls with status_code != Success and status_code != Redirection, try limits, certificate errors.  
-Columns (csv, xml): `error,url,id_parent`  
-Columns (console): `error,url,parent`
+Columns (csv, xml): `msg,url,id_parent`  
+Columns (console): `msg,url,parent`
 
 #### log_redirect
 Urls that returned redirect status.  
@@ -184,12 +184,12 @@ Columns (console): `url,parent`
 
 #### log_info
 Verbose log.  
-Columns (csv, xml): `id,parent,time,try_cnt,cnt,is_html,found,url,charset,error`  
+Columns (csv, xml): `id,parent,time,try_cnt,cnt,is_html,found,url,charset,msg`  
 Columns (console): `thread,time,url,parent`
 
 #### log_other
-Other errors and exceptions.  
-Columns: `error`
+Errors, exceptions and info messages.  
+Columns: `msg`
 
 ### HTTPS options
 HTTPS support is implemented using the OpenSSL library and is enabled by default. To use HTTPS add/remove `CPPHTTPLIB_OPENSSL_SUPPORT` macro from sitemap.h and run `make`. `libcrypto`, `libssl` (`libcrypt32`, `libcryptui` on Windows) should be available. See HTTPS options below.

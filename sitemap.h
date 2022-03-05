@@ -82,7 +82,7 @@ class Main;
 
 class Log {
 public:
-	enum Field: int {id, found, url, parent, id_parent, time, is_html, try_cnt, charset, error, thread, cnt};
+	enum Field: int {id, found, url, parent, id_parent, time, is_html, try_cnt, charset, msg, thread, cnt};
 	virtual void write(const std::vector<std::string>&) = 0;
 	Log(Main*, const std::string&, const std::string&, const std::vector<Field>&);
 	virtual ~Log();
@@ -91,7 +91,7 @@ protected:
 	std::ofstream file;
 	std::string file_name;
 	const std::vector<Field> fields;
-	const std::vector<std::string> fields_all{"id", "found", "url", "parent", "id_parent", "time", "is_html", "try_cnt", "charset", "error", "thread", "cnt"};
+	const std::vector<std::string> fields_all{"id", "found", "url", "parent", "id_parent", "time", "is_html", "try_cnt", "charset", "msg", "thread", "cnt"};
 };
 
 class Console_Log: public Log {
