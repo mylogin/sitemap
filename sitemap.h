@@ -15,6 +15,7 @@
 #include <string>
 #include <functional>
 #include <algorithm>
+#include <chrono>
 
 #include "deps/uri/include/Uri/Uri.hpp"
 #include "deps/http/httplib.h"
@@ -29,6 +30,7 @@ public:
 	double elapsed() const {
 		return std::chrono::duration_cast<second_>(clock_::now() - beg_).count();
 	}
+	std::string elapsed_str(int p = 4) const;
 private:
 	using clock_ = std::chrono::high_resolution_clock;
 	using second_ = std::chrono::duration<double, std::ratio<1> >;

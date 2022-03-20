@@ -38,6 +38,20 @@ std::vector<Tag> Tags_other{
 	{"*", {{"itemtype"}}}
 };
 
+std::string Timer::elapsed_str(int p) const {
+	std::stringstream s;
+	s << std::fixed << std::setprecision(p);
+	double e = elapsed();
+	if(e < 60) {
+		s << e << "s";
+	} else if(e < 60 * 60) {
+		s << e / 60 << "m";
+	} else {
+		s << e / 60 / 60 << "h";
+	}
+	return s.str();
+}
+
 std::vector<std::string> Utils::split(const std::string& str, char ch, bool ignore_ws) {
 	std::string elem;
 	std::stringstream si(str);
@@ -1161,11 +1175,11 @@ int main(int argc, char *argv[]) {
 			std::rethrow_exception(exc_ptr);
 		}
 		c.finished();
-		auto elapsed = "Elapsed time: " + std::to_string(tmr.elapsed());
+		auto elapsed_str = "Elapsed time: " + tmr.elapsed_str();
 		if(c.log_other) {
-			c.log_other->write({elapsed});
+			c.log_other->write({elapsed_str});
 		} else {
-			std::cout << elapsed << std::endl;
+			std::cout << elapsed_str << std::endl;
 		}
 	} catch (const std::exception& e) {
 		if(c.log_other) {
