@@ -16,6 +16,7 @@
 #include <functional>
 #include <algorithm>
 #include <chrono>
+#include <iterator>
 
 #include "deps/uri/include/Uri/Uri.hpp"
 #include "deps/http/httplib.h"
