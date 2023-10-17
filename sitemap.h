@@ -87,10 +87,9 @@ class Log {
 public:
 	enum Field: int {id, found, url, parent, id_parent, time, is_html, try_cnt, charset, msg, thread, cnt};
 	virtual void write(const std::vector<std::string>&) = 0;
-	Log(Main*, const std::string&, const std::string&, const std::vector<Field>&);
+	Log(const std::string&, const std::string&, const std::vector<Field>&);
 	virtual ~Log();
 protected:
-	Main* main;
 	std::ofstream file;
 	std::string file_name;
 	const std::vector<Field> fields;
@@ -99,13 +98,13 @@ protected:
 
 class Console_Log: public Log {
 public:
-	Console_Log(Main*, const std::string&, const std::vector<Field>&);
+	Console_Log(const std::string&, const std::vector<Field>&);
 	void write(const std::vector<std::string>&);
 };
 
 class CSV_Log: public Log {
 public:
-	CSV_Log(Main*, const std::string&, const std::vector<Field>&);
+	CSV_Log(const std::string&, const std::vector<Field>&);
 	void write(const std::vector<std::string>&);
 private:
 	CSV_Writer writer;
@@ -113,7 +112,7 @@ private:
 
 class XML_Log: public Log {
 public:
-	XML_Log(Main*, const std::string&, const std::vector<Field>&);
+	XML_Log(const std::string&, const std::vector<Field>&);
 	~XML_Log();
 	void write(const std::vector<std::string>&);
 private:
@@ -122,7 +121,7 @@ private:
 
 class LogWrap {
 public:
-	void init(Main*, const std::string&, const std::vector<Log::Field>&);
+	void init(const std::string&, const std::vector<Log::Field>&);
 	operator bool() const {
 		return enabled;
 	}
@@ -249,7 +248,7 @@ public:
 
 class Thread {
 public:
-	Thread(int id, Main* main) : id(id), main(main) {}
+	Thread(int id) : id(id) {}
 	void start();
 	void join();
 	void set_url(std::unique_ptr<Url_struct>&);
@@ -259,7 +258,6 @@ private:
 	void load();
 	void http_finished();
 	int id;
-	Main* main = nullptr;
 	html::parser p;
 	std::shared_ptr<httplib::Client> cli;
 	std::shared_ptr<httplib::Result> result;

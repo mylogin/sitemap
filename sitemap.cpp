@@ -1,5 +1,7 @@
 #include "sitemap.h"
 
+Main main_obj;
+
 std::exception_ptr exc_ptr = nullptr;
 
 std::vector<std::string> Tags_main{"a", "area"};
@@ -203,18 +205,18 @@ CSV_Writer& CSV_Writer::row() {
 	return *this;
 }
 
-Log::Log(Main* _main, const std::string& _file_name, const std::string& ext, const std::vector<Field>& _fields): main(_main), file_name(_file_name), fields(_fields) {
+Log::Log(const std::string& _file_name, const std::string& ext, const std::vector<Field>& _fields): file_name(_file_name), fields(_fields) {
 	if(ext == "console") {
 		return;
 	}
 	int file_num = 0;
 	std::string file_name;
-	if(main->rewrite_log) {
-		file_name = main->log_dir + "/" + _file_name + "." + ext;
+	if(main_obj.rewrite_log) {
+		file_name = main_obj.log_dir + "/" + _file_name + "." + ext;
 	} else {
 		do {
-			file_name = main->log_dir + "/" + _file_name + (file_num ? "." + std::to_string(file_num) : "") + "." + ext;
-			if(file_num++ >= main->max_log_cnt) {
+			file_name = main_obj.log_dir + "/" + _file_name + (file_num ? "." + std::to_string(file_num) : "") + "." + ext;
+			if(file_num++ >= main_obj.max_log_cnt) {
 				throw std::runtime_error("Unable to create " + file_name);
 			}
 		} while(Utils::file_exists(file_name));
@@ -231,10 +233,10 @@ Log::~Log() {
 	}
 }
 
-Console_Log::Console_Log(Main* main, const std::string& file_name, const std::vector<Field>& fields): Log(main, file_name, "console", fields) {}
+Console_Log::Console_Log(const std::string& file_name, const std::vector<Field>& fields): Log(file_name, "console", fields) {}
 
 void Console_Log::write(const std::vector<std::string>& msg) {
-	std::lock_guard<std::mutex> lock(main->mutex_log);
+	std::lock_guard<std::mutex> lock(main_obj.mutex_log);
 	if(msg.size() != fields.size()) {
 		return;
 	}
@@ -248,7 +250,7 @@ void Console_Log::write(const std::vector<std::string>& msg) {
 	std::cout << std::endl;
 }
 
-CSV_Log::CSV_Log(Main* main, const std::string& file_name, const std::vector<Field>& fields): Log(main, file_name, "csv", fields), writer(file, main->csv_separator) {
+CSV_Log::CSV_Log(const std::string& file_name, const std::vector<Field>& fields): Log(file_name, "csv", fields), writer(file, main_obj.csv_separator) {
 	for(size_t i = 0; i < fields.size(); i++) {
 		writer.add(fields_all[fields[i]]);
 	}
@@ -256,7 +258,7 @@ CSV_Log::CSV_Log(Main* main, const std::string& file_name, const std::vector<Fie
 }
 
 void CSV_Log::write(const std::vector<std::string>& msg) {
-	std::lock_guard<std::mutex> lock(main->mutex_log);
+	std::lock_guard<std::mutex> lock(main_obj.mutex_log);
 	if(msg.size() != fields.size()) {
 		return;
 	}
@@ -266,7 +268,7 @@ void CSV_Log::write(const std::vector<std::string>& msg) {
 	writer.row();
 }
 
-XML_Log::XML_Log(Main* main, const std::string& file_name, const std::vector<Field>& fields): Log(main, file_name, "xml", fields), writer(file) {
+XML_Log::XML_Log(const std::string& file_name, const std::vector<Field>& fields): Log(file_name, "xml", fields), writer(file) {
 	writer.write_start_doc();
 }
 
@@ -275,7 +277,7 @@ XML_Log::~XML_Log() {
 }
 
 void XML_Log::write(const std::vector<std::string>& msg) {
-	std::lock_guard<std::mutex> lock(main->mutex_log);
+	std::lock_guard<std::mutex> lock(main_obj.mutex_log);
 	if(msg.size() != fields.size()) {
 		return;
 	}
@@ -288,13 +290,13 @@ void XML_Log::write(const std::vector<std::string>& msg) {
 	writer.write_end_el();
 }
 
-void LogWrap::init(Main* main, const std::string& file_name, const std::vector<Log::Field>& fields) {
-	if(main->type_log == "console") {
-		log = std::unique_ptr<Console_Log>(new Console_Log(main, file_name, fields));
-	} else if(main->type_log == "xml") {
-		log = std::unique_ptr<XML_Log>(new XML_Log(main, file_name, fields));
-	} else if(main->type_log == "csv") {
-		log = std::unique_ptr<CSV_Log>(new CSV_Log(main, file_name, fields));
+void LogWrap::init(const std::string& file_name, const std::vector<Log::Field>& fields) {
+	if(main_obj.type_log == "console") {
+		log = std::unique_ptr<Console_Log>(new Console_Log(file_name, fields));
+	} else if(main_obj.type_log == "xml") {
+		log = std::unique_ptr<XML_Log>(new XML_Log(file_name, fields));
+	} else if(main_obj.type_log == "csv") {
+		log = std::unique_ptr<CSV_Log>(new CSV_Log(file_name, fields));
 	} else {
 		throw std::runtime_error("Parameter 'type_log' is not valid");
 	}
@@ -433,54 +435,54 @@ void Main::import_param(const std::string& file) {
 	}
 	if(param_log_redirect) {
 		if(type_log == "console") {
-			log_redirect_console.init(this, "redirect", {Log::Field::url, Log::Field::parent});
+			log_redirect_console.init("redirect", {Log::Field::url, Log::Field::parent});
 		} else {
-			log_redirect_file.init(this, "redirect", {Log::Field::url, Log::Field::id_parent});
+			log_redirect_file.init("redirect", {Log::Field::url, Log::Field::id_parent});
 		}
 	}
 	if(param_log_error_reply) {
 		if(type_log == "console") {
-			log_error_reply_console.init(this, "error_reply", {Log::Field::msg, Log::Field::url, Log::Field::parent});
+			log_error_reply_console.init("error_reply", {Log::Field::msg, Log::Field::url, Log::Field::parent});
 		} else {
-			log_error_reply_file.init(this, "error_reply", {Log::Field::msg, Log::Field::url, Log::Field::id_parent});
+			log_error_reply_file.init("error_reply", {Log::Field::msg, Log::Field::url, Log::Field::id_parent});
 		}
 	}
 	if(param_log_ignored_url) {
 		if(type_log == "console") {
-			log_ignored_url_console.init(this, "ignored_url", {Log::Field::found, Log::Field::parent});
+			log_ignored_url_console.init("ignored_url", {Log::Field::found, Log::Field::parent});
 		} else {
-			log_ignored_url_file.init(this, "ignored_url", {Log::Field::found, Log::Field::id_parent});
+			log_ignored_url_file.init("ignored_url", {Log::Field::found, Log::Field::id_parent});
 		}
 	}
 	if(param_log_skipped_url) {
 		if(type_log == "console") {
-			log_skipped_url_console.init(this, "skipped_url", {Log::Field::url, Log::Field::parent});
+			log_skipped_url_console.init("skipped_url", {Log::Field::url, Log::Field::parent});
 		} else {
-			log_skipped_url_file.init(this, "skipped_url", {Log::Field::url, Log::Field::id_parent});
+			log_skipped_url_file.init("skipped_url", {Log::Field::url, Log::Field::id_parent});
 		}
 	}
 	if(param_log_bad_html) {
 		if(type_log == "console") {
-			log_bad_html_console.init(this, "bad_html", {Log::Field::msg, Log::Field::url});
+			log_bad_html_console.init("bad_html", {Log::Field::msg, Log::Field::url});
 		} else {
-			log_bad_html_file.init(this, "bad_html", {Log::Field::msg, Log::Field::id});
+			log_bad_html_file.init("bad_html", {Log::Field::msg, Log::Field::id});
 		}
 	}
 	if(param_log_bad_url) {
 		if(type_log == "console") {
-			log_bad_url_console.init(this, "bad_url", {Log::Field::found, Log::Field::parent});
+			log_bad_url_console.init("bad_url", {Log::Field::found, Log::Field::parent});
 		} else {
-			log_bad_url_file.init(this, "bad_url", {Log::Field::found, Log::Field::id_parent});
+			log_bad_url_file.init("bad_url", {Log::Field::found, Log::Field::id_parent});
 		}
 	}
 	if(param_log_other) {
-		log_other.init(this, "other", {Log::Field::msg});
+		log_other.init("other", {Log::Field::msg});
 	}
 	if(param_log_info) {
 		if(type_log == "console") {
-			log_info_console.init(this, "info", {Log::Field::thread, Log::Field::time, Log::Field::url, Log::Field::parent});
+			log_info_console.init("info", {Log::Field::thread, Log::Field::time, Log::Field::url, Log::Field::parent});
 		} else {
-			log_info_file.init(this, "info", {Log::Field::id, Log::Field::parent, Log::Field::time, Log::Field::try_cnt, Log::Field::cnt, Log::Field::is_html, Log::Field::found, Log::Field::url, Log::Field::charset, Log::Field::msg});
+			log_info_file.init("info", {Log::Field::id, Log::Field::parent, Log::Field::time, Log::Field::try_cnt, Log::Field::cnt, Log::Field::is_html, Log::Field::found, Log::Field::url, Log::Field::charset, Log::Field::msg});
 		}
 	}
 	if(sitemap) {
@@ -540,7 +542,7 @@ void Main::start() {
 	std::vector<Thread> threads;
 	threads.reserve(thread_cnt);
 	for(int i = 0; i < thread_cnt; i++) {
-		threads.emplace_back(i + 1, this);
+		threads.emplace_back(i + 1);
 		threads[i].start();
 	}
 	for(auto &thread : threads) {
@@ -894,7 +896,7 @@ void Thread::start() {
 			}
 			return;
 		}
-		if(main->link_check) {
+		if(main_obj.link_check) {
 			for(auto& tag : Tags_other) {
 				if(n.tag_name == tag.name) {
 					for(auto& attr : tag.attr) {
@@ -915,7 +917,7 @@ void Thread::start() {
 			}
 		}
 	});
-	if(main->param_log_bad_html) {
+	if(main_obj.param_log_bad_html) {
 		p.set_callback([this](html::err_t e, html::node& n) {
 			std::string msg;
 			if(e == html::err_t::tag_not_closed) {
@@ -926,11 +928,11 @@ void Thread::start() {
 				}
 				msg.insert(0, "Unclosed tag:");
 			}
-			if(main->log_bad_html_file) {
-				main->log_bad_html_file->write({msg, std::to_string(m_url->id)});
+			if(main_obj.log_bad_html_file) {
+				main_obj.log_bad_html_file->write({msg, std::to_string(m_url->id)});
 			}
-			if(main->log_bad_html_console) {
-				main->log_bad_html_console->write({msg, m_url->resolved});
+			if(main_obj.log_bad_html_console) {
+				main_obj.log_bad_html_console->write({msg, m_url->resolved});
 			}
 		});
 	}
@@ -947,20 +949,20 @@ void Thread::join() {
 void Thread::load() {
 	try {
 		{
-			std::lock_guard<std::mutex> lk(main->mutex);
-			main->thread_work++;
+			std::lock_guard<std::mutex> lk(main_obj.mutex);
+			main_obj.thread_work++;
 		}
-		while(main->get_url(this)) {
+		while(main_obj.get_url(this)) {
 			if(suspend) {
 				continue;
 			}
 #ifndef CPPHTTPLIB_OPENSSL_SUPPORT
 			if(m_url->ssl) {
-				if(main->log_error_reply_file) {
-					main->log_error_reply_file->write({"HTTPS not supported", m_url->resolved, std::to_string(m_url->parent)});
+				if(main_obj.log_error_reply_file) {
+					main_obj.log_error_reply_file->write({"HTTPS not supported", m_url->resolved, std::to_string(m_url->parent)});
 				}
-				if(main->log_error_reply_console) {
-					main->log_error_reply_console->write({"HTTPS not supported", m_url->resolved, main->get_resolved(m_url->parent)});
+				if(main_obj.log_error_reply_console) {
+					main_obj.log_error_reply_console->write({"HTTPS not supported", m_url->resolved, main_obj.get_resolved(m_url->parent)});
 				}
 				continue;
 			}
@@ -968,17 +970,17 @@ void Thread::load() {
 			std::string scheme_host(m_url->ssl ? "https" : "http");
 			scheme_host += "://" + m_url->host;
 			cli = std::make_shared<httplib::Client>(scheme_host);
-			if(!main->param_interface.empty()) {
-				cli->set_interface(main->param_interface.data());
+			if(!main_obj.param_interface.empty()) {
+				cli->set_interface(main_obj.param_interface.data());
 			}
 			if(m_url->ssl) {
-				cli->enable_server_certificate_verification(main->cert_verification);
-				if(main->cert_verification) {
-					if(!main->ca_cert_file_path.empty()) {
-						cli->set_ca_cert_path(main->ca_cert_file_path.c_str());
+				cli->enable_server_certificate_verification(main_obj.cert_verification);
+				if(main_obj.cert_verification) {
+					if(!main_obj.ca_cert_file_path.empty()) {
+						cli->set_ca_cert_path(main_obj.ca_cert_file_path.c_str());
 					}
-					if(!main->ca_cert_dir_path.empty()) {
-						cli->set_ca_cert_path(nullptr, main->ca_cert_dir_path.c_str());
+					if(!main_obj.ca_cert_dir_path.empty()) {
+						cli->set_ca_cert_path(nullptr, main_obj.ca_cert_dir_path.c_str());
 					}
 				}
 			}
@@ -991,36 +993,36 @@ void Thread::load() {
 			double time = tmr.elapsed();
 			m_url->time += time;
 			m_url->try_cnt++;
-			if(main->log_info_console) {
-				main->log_info_console->write({std::to_string(id), std::to_string(time), m_url->resolved, main->get_resolved(m_url->parent)});
+			if(main_obj.log_info_console) {
+				main_obj.log_info_console->write({std::to_string(id), std::to_string(time), m_url->resolved, main_obj.get_resolved(m_url->parent)});
 			}
 			http_finished();
-			if(main->param_sleep) {
-				std::this_thread::sleep_for(std::chrono::milliseconds(main->param_sleep));
+			if(main_obj.param_sleep) {
+				std::this_thread::sleep_for(std::chrono::milliseconds(main_obj.param_sleep));
 			}
 		}
 	} catch(...) {
 		{
-			std::lock_guard<std::mutex> lk(main->mutex);
+			std::lock_guard<std::mutex> lk(main_obj.mutex);
 			exc_ptr = std::current_exception();
-			main->running = false;
+			main_obj.running = false;
 		}
-		main->cond.notify_all();
+		main_obj.cond.notify_all();
 	}
 }
 
 void Thread::http_finished() {
 	auto& reply = *result;
 	if(!reply) {
-		if(m_url->try_cnt < main->try_limit) {
-			main->try_again(m_url);
+		if(m_url->try_cnt < main_obj.try_limit) {
+			main_obj.try_again(m_url);
 		} else {
 			m_url->error = httplib::to_string(reply.error());
-			if(main->log_error_reply_file) {
-				main->log_error_reply_file->write({m_url->error, m_url->resolved, std::to_string(m_url->parent)});
+			if(main_obj.log_error_reply_file) {
+				main_obj.log_error_reply_file->write({m_url->error, m_url->resolved, std::to_string(m_url->parent)});
 			}
-			if(main->log_error_reply_console) {
-				main->log_error_reply_console->write({m_url->error, m_url->resolved, main->get_resolved(m_url->parent)});
+			if(main_obj.log_error_reply_console) {
+				main_obj.log_error_reply_console->write({m_url->error, m_url->resolved, main_obj.get_resolved(m_url->parent)});
 			}
 		}
 		return;
@@ -1029,33 +1031,33 @@ void Thread::http_finished() {
 		auto res = cli->get_openssl_verify_result();
 		if(res != X509_V_OK) {
 			m_url->error = std::string("Certificate verification error: ") + X509_verify_cert_error_string(res);
-			if(main->log_error_reply_file) {
-				main->log_error_reply_file->write({m_url->error, m_url->resolved, std::to_string(m_url->parent)});
+			if(main_obj.log_error_reply_file) {
+				main_obj.log_error_reply_file->write({m_url->error, m_url->resolved, std::to_string(m_url->parent)});
 			}
-			if(main->log_error_reply_console) {
-				main->log_error_reply_console->write({m_url->error, m_url->resolved, main->get_resolved(m_url->parent)});
+			if(main_obj.log_error_reply_console) {
+				main_obj.log_error_reply_console->write({m_url->error, m_url->resolved, main_obj.get_resolved(m_url->parent)});
 			}
 			return;
 		}
 	}
-	if(reply->status >= 500 && reply->status < 600 && m_url->try_cnt < main->try_limit) {
-		main->try_again(m_url);
+	if(reply->status >= 500 && reply->status < 600 && m_url->try_cnt < main_obj.try_limit) {
+		main_obj.try_again(m_url);
 		return;
 	}
 	if(reply->status >= 300 && reply->status < 400) {
 		m_url->error = "Redirect";
-		if(main->log_redirect_file) {
-			main->log_redirect_file->write({m_url->resolved, std::to_string(m_url->parent)});
+		if(main_obj.log_redirect_file) {
+			main_obj.log_redirect_file->write({m_url->resolved, std::to_string(m_url->parent)});
 		}
-		if(main->log_redirect_console) {
-			main->log_redirect_console->write({m_url->resolved, main->get_resolved(m_url->parent)});
+		if(main_obj.log_redirect_console) {
+			main_obj.log_redirect_console->write({m_url->resolved, main_obj.get_resolved(m_url->parent)});
 		}
-		if(m_url->redirect_cnt > main->redirect_limit) {
-			if(main->log_error_reply_file) {
-				main->log_error_reply_file->write({"Redirect limit reached", m_url->resolved, std::to_string(m_url->parent)});
+		if(m_url->redirect_cnt > main_obj.redirect_limit) {
+			if(main_obj.log_error_reply_file) {
+				main_obj.log_error_reply_file->write({"Redirect limit reached", m_url->resolved, std::to_string(m_url->parent)});
 			}
-			if(main->log_error_reply_console) {
-				main->log_error_reply_console->write({"Redirect limit reached", m_url->resolved, main->get_resolved(m_url->parent)});
+			if(main_obj.log_error_reply_console) {
+				main_obj.log_error_reply_console->write({"Redirect limit reached", m_url->resolved, main_obj.get_resolved(m_url->parent)});
 			}
 			return;
 		}
@@ -1070,11 +1072,11 @@ void Thread::http_finished() {
 	}
 	if(reply->status != 200) {
 		m_url->error = "Code:" + std::to_string(reply->status);
-		if(main->log_error_reply_file) {
-			main->log_error_reply_file->write({m_url->error, m_url->resolved, std::to_string(m_url->parent)});
+		if(main_obj.log_error_reply_file) {
+			main_obj.log_error_reply_file->write({m_url->error, m_url->resolved, std::to_string(m_url->parent)});
 		}
-		if(main->log_error_reply_console) {
-			main->log_error_reply_console->write({m_url->error, m_url->resolved, main->get_resolved(m_url->parent)});
+		if(main_obj.log_error_reply_console) {
+			main_obj.log_error_reply_console->write({m_url->error, m_url->resolved, main_obj.get_resolved(m_url->parent)});
 		}
 		return;
 	}
@@ -1083,11 +1085,11 @@ void Thread::http_finished() {
 	}
 	if(!reply->has_header("Content-Type")) {
 		m_url->error = "Content-Type empty";
-		if(main->log_error_reply_file) {
-			main->log_error_reply_file->write({m_url->error, m_url->resolved, std::to_string(m_url->parent)});
+		if(main_obj.log_error_reply_file) {
+			main_obj.log_error_reply_file->write({m_url->error, m_url->resolved, std::to_string(m_url->parent)});
 		}
-		if(main->log_error_reply_console) {
-			main->log_error_reply_console->write({m_url->error, m_url->resolved, main->get_resolved(m_url->parent)});
+		if(main_obj.log_error_reply_console) {
+			main_obj.log_error_reply_console->write({m_url->error, m_url->resolved, main_obj.get_resolved(m_url->parent)});
 		}
 		return;
 	}
@@ -1108,14 +1110,14 @@ void Thread::http_finished() {
 void Thread::set_url(std::unique_ptr<Url_struct>& new_url) {
 	new_url->parent = m_url->id;
 	new_url->base_href = m_url->base_href;
-	if(main->handle_url(new_url.get())) {
-		main->set_url(new_url);
+	if(main_obj.handle_url(new_url.get())) {
+		main_obj.set_url(new_url);
 	} else {
-		if(main->log_ignored_url_file) {
-			main->log_ignored_url_file->write({new_url->found, std::to_string(new_url->parent)});
+		if(main_obj.log_ignored_url_file) {
+			main_obj.log_ignored_url_file->write({new_url->found, std::to_string(new_url->parent)});
 		}
-		if(main->log_ignored_url_console) {
-			main->log_ignored_url_console->write({new_url->found, main->get_resolved(new_url->parent)});
+		if(main_obj.log_ignored_url_console) {
+			main_obj.log_ignored_url_console->write({new_url->found, main_obj.get_resolved(new_url->parent)});
 		}
 	}
 }
@@ -1163,27 +1165,26 @@ bool Handler::attr_srcset(html::node& n, std::string& href, Thread* t) {
 }
 
 int main(int argc, char *argv[]) {
-	Main c;
 	try {
 		if(argc != 2) {
 			throw std::runtime_error("Specify setting file");
 		}
 		Timer tmr;
-		c.import_param(argv[1]);
-		c.start();
+		main_obj.import_param(argv[1]);
+		main_obj.start();
 		if(exc_ptr) {
 			std::rethrow_exception(exc_ptr);
 		}
-		c.finished();
+		main_obj.finished();
 		auto elapsed_str = "Elapsed time: " + tmr.elapsed_str();
-		if(c.log_other) {
-			c.log_other->write({elapsed_str});
+		if(main_obj.log_other) {
+			main_obj.log_other->write({elapsed_str});
 		} else {
 			std::cout << elapsed_str << std::endl;
 		}
 	} catch (const std::exception& e) {
-		if(c.log_other) {
-			c.log_other->write({e.what()});
+		if(main_obj.log_other) {
+			main_obj.log_other->write({e.what()});
 		} else {
 			std::cout << e.what() << std::endl;
 		}
