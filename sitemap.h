@@ -10,6 +10,7 @@
 #include <vector>
 #include <queue>
 #include <stack>
+#include <set>
 #include <mutex>
 #include <condition_variable>
 #include <string>
@@ -121,15 +122,13 @@ private:
 
 class LogWrap {
 public:
-	void init(const std::string&, const std::vector<Log::Field>&);
+	void init(const std::set<std::string>&, const std::string&, const std::vector<Log::Field>&);
 	operator bool() const {
 		return enabled;
 	}
-	Log* operator->() const {
-		return log.get();
-	}
+	void write(const std::vector<std::string>&) const;
 private:
-	std::unique_ptr<Log> log;
+	std::vector<std::unique_ptr<Log>> logs;
 	bool enabled = false;
 };
 
@@ -190,7 +189,7 @@ public:
 	std::string xml_name = "sitemap";
 	std::string xml_index_name;
 	std::string csv_separator = ",";
-	std::string type_log = "csv";
+	std::set<std::string> type_log = {"console"};
 	bool param_log_redirect = false;
 	bool param_log_error_reply = false;
 	bool param_log_ignored_url = false;

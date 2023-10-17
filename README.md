@@ -117,9 +117,9 @@ Examples:
 ### Logs
 Log files are written in CSV or XML formats, or displayed if the `type_log console` is set.
 
-#### type_log (values: xml, csv, console; default: csv)
+#### type_log (values: xml, csv, console; default: console)
 Log files format.  
-Example: `type_log xml`
+Example: `type_log console,csv`
 
 #### rewrite_log
 Overwrite log files instead of creating new ones.  

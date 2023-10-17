@@ -18,6 +18,7 @@ xml_tag priority 0.3
 xml_tag priority 0.7 ^https?:\/\/www\.sitename\.xx\/?$
 xml_tag priority 0.7 ^https?:\/\/www\.sitename\.xx\/special\/
 rewrite_log
+type_log console,csv
 log_redirect
 log_error_reply
 log_ignored_url
