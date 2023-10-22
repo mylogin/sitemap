@@ -520,6 +520,15 @@ std::string Main::uri_normalize(const Uri::Uri& uri) {
 	return uri_.GenerateString();
 }
 
+bool Main::exit_handler() {
+	std::unique_lock<std::mutex> lk(mutex);
+	std::cout << "stopping..." << std::endl;
+	running = false;
+	lk.unlock();
+	cond.notify_all();
+	return true;
+}
+
 void Main::start() {
 	std::unique_ptr<Url_struct> url(new Url_struct);
 	url->found = param_url;
@@ -530,21 +539,9 @@ void Main::start() {
 	}
 	set_url(url);
 
-	std::thread t([this]() {
-		std::string ch;
-		while(1) {
-			std::cin >> ch;
-			if(ch == "q") {
-				std::unique_lock<std::mutex> lk(mutex);
-				std::cout << "stopping..." << std::endl;
-				running = false;
-				lk.unlock();
-				cond.notify_all();
-				break;
-			}
-		}
-	});
-	t.detach();
+	if(!sys::handle_exit()) {
+		std::cout << "Could not set exit handler" << std::endl;
+	}
 
 	std::vector<Thread> threads;
 	threads.reserve(thread_cnt);
@@ -555,6 +552,7 @@ void Main::start() {
 	for(auto &thread : threads) {
 		thread.join();
 	}
+
 }
 
 bool Main::set_url(std::unique_ptr<Url_struct>& url) {
@@ -1169,6 +1167,51 @@ bool Handler::attr_srcset(html::node& n, std::string& href, Thread* t) {
 		}
 	}
 	return false;
+}
+
+namespace sys {
+
+#ifdef WINDOWS_PLATFORM
+BOOL WINAPI ctrl_handler(DWORD ctrl_type) {
+	switch(ctrl_type) {
+		case CTRL_C_EVENT:
+			return main_obj.exit_handler() ? TRUE : FALSE;
+		break;
+		default:
+			return FALSE;
+	}
+}
+
+bool handle_exit() {
+	return SetConsoleCtrlHandler(ctrl_handler, TRUE) != 0;
+}
+#elif defined(LINUX_PLATFORM) || defined(MACOS_PLATFORM)
+void sig_handler(int sig) {
+	switch(sig) {
+		case SIGINT:
+			main_obj.exit_handler();
+		break;
+		default:
+			return;
+	}
+}
+
+bool handle_exit() {
+	struct sigaction action;
+	action.sa_handler = sig_handler;
+	sigemptyset(&action.sa_mask);
+	action.sa_flags = 0;
+	if(sigaction(SIGINT, &action, nullptr) == 0) {
+		return true;
+	}
+	return false;
+}
+#else
+bool handle_exit() {
+	return false;
+}
+#endif
+
 }
 
 int main(int argc, char *argv[]) {

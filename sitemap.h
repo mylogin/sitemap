@@ -23,6 +23,17 @@
 #include "deps/http/httplib.h"
 #include "deps/parser/html.hpp"
 
+#if defined(_WIN32) || defined(__WIN32__) || defined(WIN32)
+#define WINDOWS_PLATFORM
+#include <Windows.h>
+#elif defined(macintosh) || defined(__APPLE__) || defined(__APPLE_CC__)
+#define MACOS_PLATFORM
+#include <signal.h>
+#elif defined(linux) || defined(__linux) || defined(__linux__)
+#define LINUX_PLATFORM
+#include <signal.h>
+#endif
+
 class Timer {
 public:
 	Timer() : beg_(clock_::now()) {}
@@ -181,6 +192,7 @@ public:
 	bool get_url(Thread*);
 	std::string get_resolved(int);
 	std::string uri_normalize(const Uri::Uri&);
+	bool exit_handler();
 
 	// setting
 	std::string log_dir;
@@ -279,5 +291,11 @@ struct Tag {
 	std::string name;
 	std::vector<Attr> attr;
 };
+
+namespace sys {
+
+bool handle_exit();
+
+}
 
 #endif // SITEMAP_H

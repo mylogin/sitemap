@@ -4,7 +4,7 @@
 	make
 	# edit setting.txt
 	./sitemap setting.txt
-	# type `q` to quit or wait until the program ends
+	# press Ctrl+C to exit or wait until the program ends
 
 ## Features
 * Multi-thread support.
