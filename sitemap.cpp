@@ -352,9 +352,11 @@ void Main::import_param(const std::string& file) {
 		} else if(res.size() == 2) {
 			if(res[0] == "url") {
 				param_url = res[1];
-				if(!uri.ParseFromString(param_url)) {
+				boost::system::result<url> r = parse_uri_reference(param_url);
+				if(!r) {
 					throw std::runtime_error("Parameter 'url' is not valid");
 				}
+				uri = r.value();
 			} else if(res[0] == "xml_name") {
 				xml_name = res[1];
 			} else if(res[0] == "xml_index_name") {
@@ -501,23 +503,22 @@ void Main::import_param(const std::string& file) {
 	}
 }
 
-std::string Main::uri_normalize(const Uri::Uri& uri) {
-	Uri::Uri uri_(uri);
-	// remove trailing /
-	auto path = uri_.GetPath();
-	if(!path.empty() && path.back().empty()) {
-		path.pop_back();
-		uri_.SetPath(path);
+std::string Main::uri_normalize(const url& uri) {
+	url u = uri;
+	u.normalize();
+	u.remove_fragment();
+	if(u.port() == "80" || u.port().empty()) {
+		u.remove_port();
 	}
-	// sort query
-	if(uri_.HasQuery()) {
-		auto split_query = Utils::split(uri_.GetQuery(), '&');
+	if (u.has_authority() && u.encoded_path().empty()) {
+		u.set_path_absolute(true);
+	}
+	if(u.has_query()) {
+		auto split_query = Utils::split(u.query(), '&');
 		std::sort(split_query.begin(), split_query.end());
-		uri_.SetQuery(Utils::join(split_query, '&'));
+		u.set_query(Utils::join(split_query, '&'));
 	}
-	// remove fragment
-	uri_.ClearFragment();
-	return uri_.GenerateString();
+	return u.buffer();
 }
 
 bool Main::exit_handler() {
@@ -645,18 +646,17 @@ bool Main::handle_url(Url_struct* url_new, bool filter) {
 	std::string found = std::regex_replace(url_new->found, std::regex(R"(^\s+|\s+$)"), std::string(""));
 
 	// ----- resolve
-	Uri::Uri b;
-	Uri::Uri d;
-	if(!b.ParseFromString(url_new->base_href)) {
+	boost::system::result<url> rb = parse_uri_reference(url_new->base_href);
+	boost::system::result<url> rd = parse_uri_reference(found);
+	if(!rb) {
 		if(log_bad_url_file) {
 			log_bad_url_file.write({url_new->base_href, std::to_string(url_new->parent)});
 		}
 		if(log_bad_url_console) {
 			log_bad_url_console.write({url_new->base_href, get_resolved(url_new->parent)});
 		}
-		return false;
 	}
-	if(!d.ParseFromString(found)) {
+	if(!rd) {
 		if(log_bad_url_file) {
 			log_bad_url_file.write({url_new->found, std::to_string(url_new->parent)});
 		}
@@ -665,14 +665,19 @@ bool Main::handle_url(Url_struct* url_new, bool filter) {
 		}
 		return false;
 	}
-	auto r = b.Resolve(d);
-
-	// ----- base filter
-	if(r.GetScheme().find("http") != 0) {
+	if(!rb || !rd) {
 		return false;
 	}
-	auto d_host = r.GetHost();
-	auto b_host = uri.GetHost();
+	url b = rb.value();
+	url d = rd.value();
+	b.resolve(d);
+
+	// ----- base filter
+	if(!b.scheme().starts_with("http")) {
+		return false;
+	}
+	auto d_host = d.host();
+	auto b_host = uri.host();
 	if(d_host.empty()) {
 		return false;
 	}
@@ -691,10 +696,10 @@ bool Main::handle_url(Url_struct* url_new, bool filter) {
 			bool check = false;
 			if((*it_filter).type == Filter::type_regexp) {
 				check = true;
-				res = std::regex_search(r.GenerateString(), (*it_filter).reg);
+				res = std::regex_search(b.buffer().data(), (*it_filter).reg);
 			} else if((*it_filter).type == Filter::type_get) {
-				if(r.HasQuery()) {
-					auto split_query = Utils::split(r.GetQuery(), '&');
+				if(b.has_query()) {
+					auto split_query = Utils::split(b.query(), '&');
 					check = true;
 					res = false;
 					for(auto i : split_query) {
@@ -708,7 +713,7 @@ bool Main::handle_url(Url_struct* url_new, bool filter) {
 			} else if((*it_filter).type == Filter::type_ext) {
 				std::string elem;
 				std::string ext;
-				auto elems = r.GetPath();
+				auto elems = b.segments();
 				if(!elems.empty()) {
 					auto pos = elems.back().find_last_of('.');
 					if(pos != std::string::npos) {
@@ -735,16 +740,20 @@ bool Main::handle_url(Url_struct* url_new, bool filter) {
 			}
 		}
 	}
-	Uri::Uri uri_;
-	uri_.SetPath(r.GetPath());
-	if(r.HasQuery()) {
-		uri_.SetQuery(r.GetQuery());
+	url uri_;
+	uri_.set_path(b.path());
+	if(b.has_query()) {
+		uri_.set_query(b.query());
 	}
-	url_new->path = uri_.GenerateString();
-	url_new->normalize = uri_normalize(r);
-	url_new->resolved = r.GenerateString();
-	url_new->ssl = r.GetScheme() == "https";
-	url_new->host = r.GetHost();
+	auto path = uri_.buffer();
+	if(uri_.empty()) {
+		path = "/";
+	}
+	url_new->path = path;
+	url_new->normalize = uri_normalize(b);
+	url_new->resolved = b.buffer();
+	url_new->ssl = b.scheme() == "https";
+	url_new->host = b.host();
 	url_new->base_href = url_new->resolved;
 	return true;
 }
@@ -767,10 +776,7 @@ void Main::finished() {
 		}
 	}
 	if(sitemap) {
-		uri.ClearQuery();
-		uri.ClearFragment();
-		uri.SetPath(std::vector<std::string>{""});
-		auto base = uri.GenerateString();
+		auto base = uri.scheme().data() + std::string("://") + uri.authority().data();
 		int i = 1;
 		int j = 0;
 		std::streamoff wrap_length = 0;

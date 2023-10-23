@@ -10,7 +10,6 @@
 #include <vector>
 #include <queue>
 #include <stack>
-#include <set>
 #include <mutex>
 #include <condition_variable>
 #include <string>
@@ -19,7 +18,7 @@
 #include <chrono>
 #include <iterator>
 
-#include "deps/uri/include/Uri/Uri.hpp"
+#include <boost/url.hpp>
 #include "deps/http/httplib.h"
 #include "deps/parser/html.hpp"
 
@@ -33,6 +32,8 @@
 #define LINUX_PLATFORM
 #include <signal.h>
 #endif
+
+using namespace boost::urls;
 
 class Timer {
 public:
@@ -191,7 +192,7 @@ public:
 	void try_again(Url_struct*);
 	bool get_url(Thread*);
 	std::string get_resolved(int);
-	std::string uri_normalize(const Uri::Uri&);
+	std::string uri_normalize(const url&);
 	bool exit_handler();
 
 	// setting
@@ -230,7 +231,7 @@ public:
 	std::multimap<std::string, Xml_tag> param_xml_tag;
 
 	bool running = true;
-	Uri::Uri uri;
+	url uri;
 	std::condition_variable cond;
 	std::mutex mutex;
 	std::mutex mutex_log;
