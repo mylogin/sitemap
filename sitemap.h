@@ -19,6 +19,7 @@
 #include <iterator>
 
 #include <boost/url.hpp>
+#include <boost/program_options.hpp>
 #include "deps/http/httplib.h"
 #include "deps/parser/html.hpp"
 
@@ -33,7 +34,7 @@
 #include <signal.h>
 #endif
 
-using namespace boost::urls;
+using namespace boost;
 
 class Timer {
 public:
@@ -228,10 +229,10 @@ public:
 	int max_log_cnt = 100;
 	bool rewrite_log = false;
 	std::string param_interface;
-	std::multimap<std::string, Xml_tag> param_xml_tag;
+	std::unordered_map<std::string, Xml_tag> param_xml_tag;
 
 	bool running = true;
-	url uri;
+	urls::url uri;
 	std::condition_variable cond;
 	std::mutex mutex;
 	std::mutex mutex_log;

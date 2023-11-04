@@ -306,136 +306,129 @@ void LogWrap::init(const std::set<std::string>& types, const std::string& file_n
 }
 
 void LogWrap::write(const std::vector<std::string>& msg) const {
-	for(auto &log : logs) {
+	for(const auto& log : logs) {
 		log->write(msg);
 	}
 }
 
 void Main::import_param(const std::string& file) {
+
+	namespace po = boost::program_options;
+
 	std::ifstream infile(file);
 	if(!infile.is_open()) {
 		throw std::runtime_error("Can not open setting file");
 	}
-	std::string line;
-	std::vector<std::vector<std::string>> settings;
-	while(std::getline(infile, line)) {
-		std::istringstream iss(line);
-		std::vector<std::string> res((std::istream_iterator<std::string>(iss)), std::istream_iterator<std::string>());
-		if(res.size() == 1) {
-			if(res[0] == "subdomain") {
-				param_subdomain = true;
-			} else if(res[0] == "log_redirect") {
-				param_log_redirect = true;
-			} else if(res[0] == "log_error_reply") {
-				param_log_error_reply = true;
-			} else if(res[0] == "log_ignored_url") {
-				param_log_ignored_url = true;
-			} else if(res[0] == "log_skipped_url") {
-				param_log_skipped_url = true;
-			} else if(res[0] == "log_bad_html") {
-				param_log_bad_html = true;
-			} else if(res[0] == "log_bad_url") {
-				param_log_bad_url = true;
-			} else if(res[0] == "log_other") {
-				param_log_other = true;
-			} else if(res[0] == "log_info") {
-				param_log_info = true;
-			} else if(res[0] == "cert_verification") {
-				cert_verification = true;
-			} else if(res[0] == "link_check") {
-				link_check = true;
-			} else if(res[0] == "sitemap") {
-				sitemap = true;
-			} else if(res[0] == "rewrite_log") {
-				rewrite_log = true;
+
+	po::variables_map options;
+	po::options_description desc;
+
+	desc.add_options()
+		("main.subdomain", po::value<bool>(&param_subdomain))
+		("main.link_check", po::value<bool>(&link_check))
+		("main.thread", po::value<int>(&thread_cnt))
+		("main.url", po::value<std::string>(&param_url))
+		("main.sleep", po::value<int>(&param_sleep))
+		("main.try_limit", po::value<int>(&try_limit))
+		("main.url_limit", po::value<size_t>(&url_limit))
+		("main.redirect_limit", po::value<size_t>(&redirect_limit))
+		("main.cert_verification", po::value<bool>(&cert_verification))
+		("main.ca_cert_file_path", po::value<std::string>(&ca_cert_file_path))
+		("main.ca_cert_dir_path", po::value<std::string>(&ca_cert_dir_path))
+		("main.bind_interface", po::value<std::string>(&param_interface))
+		("filters.filter", po::value<std::vector<std::string>>())
+		("sitemap.enabled", po::value<bool>(&sitemap))
+		("sitemap.dir", po::value<std::string>(&sitemap_dir))
+		("sitemap.file_name", po::value<std::string>(&xml_name))
+		("sitemap.index_file_name", po::value<std::string>(&xml_index_name))
+		("sitemap.filemb_lim", po::value<int>(&xml_filemb_lim))
+		("sitemap.entry_lim", po::value<int>(&xml_entry_lim))
+		("sitemap.xml_tag", po::value<std::vector<std::string>>())
+		("log.type", po::value<std::string>())
+		("log.dir", po::value<std::string>(&log_dir))
+		("log.rewrite", po::value<bool>(&rewrite_log))
+		("log.max_log_cnt", po::value<int>(&max_log_cnt))
+		("log.csv_separator", po::value<std::string>(&csv_separator))
+		("log.log_redirect", po::value<bool>(&param_log_redirect))
+		("log.log_bad_html", po::value<bool>(&param_log_bad_html))
+		("log.log_bad_url", po::value<bool>(&param_log_bad_url))
+		("log.log_error_reply", po::value<bool>(&param_log_error_reply))
+		("log.log_ignored_url", po::value<bool>(&param_log_ignored_url))
+		("log.log_info", po::value<bool>(&param_log_info))
+		("log.log_other", po::value<bool>(&param_log_other))
+		("log.log_skipped_url", po::value<bool>(&param_log_skipped_url))
+	;
+	po::store(po::parse_config_file(infile, desc), options);
+	po::notify(options);
+
+	if(param_url.empty()) {
+		throw std::runtime_error("Parameter 'url' is empty");
+	}
+	system::result<urls::url> r = urls::parse_uri_reference(param_url);
+	if(!r) {
+		throw std::runtime_error("Parameter 'url' is not valid");
+	}
+	uri = r.value();
+
+	if(options.count("log.type")) {
+		auto vec = Utils::split(options["log.type"].as<std::string>(), ',');
+		std::set<std::string> param_type_log(vec.begin(), vec.end());
+		type_log = std::move(param_type_log);
+	}
+
+	if(thread_cnt >= 1 && thread_cnt <= 10) {
+		thread_cnt = 1;
+	}
+
+	const auto& filters = options["filters.filter"].as<std::vector<std::string>>();
+	for(const auto& filter : filters) {
+		auto v = Utils::split(filter, ' ');
+		if(v.size() != 3) {
+			throw std::runtime_error("Parameter 'filter' (" + filter + ") is not valid");
+		}
+		Filter f;
+		if(v[0] == "regexp") {
+			f.type = Filter::type_regexp;
+			try {
+				f.reg = std::regex(v[2], std::regex_constants::ECMAScript | std::regex_constants::icase);
+			} catch(std::exception& e) {
+				throw std::runtime_error(std::string("Parameter 'filter' (" + filter + ") is not valid: ") + e.what());
 			}
-		} else if(res.size() == 2) {
-			if(res[0] == "url") {
-				param_url = res[1];
-				boost::system::result<url> r = parse_uri_reference(param_url);
-				if(!r) {
-					throw std::runtime_error("Parameter 'url' is not valid");
-				}
-				uri = r.value();
-			} else if(res[0] == "xml_name") {
-				xml_name = res[1];
-			} else if(res[0] == "xml_index_name") {
-				xml_index_name = res[1];
-			} else if(res[0] == "thread") {
-				int index = std::stoi(res[1]);
-				if(index >= 1 && index <= 10) {
-					thread_cnt = index;
-				}
-			} else if(res[0] == "log_dir") {
-				log_dir = res[1];
-			} else if(res[0] == "sitemap_dir") {
-				sitemap_dir = res[1];
-			} else if(res[0] == "sleep") {
-				param_sleep = std::stoi(res[1]);
-			} else if(res[0] == "redirect_limit") {
-				redirect_limit = std::stoi(res[1]);
-			} else if(res[0] == "url_limit") {
-				url_limit = std::stoi(res[1]);
-			} else if(res[0] == "xml_filemb_lim") {
-				xml_filemb_lim = std::stoi(res[1]);
-			} else if(res[0] == "xml_entry_lim") {
-				xml_entry_lim = std::stoi(res[1]);
-			} else if(res[0] == "try_limit") {
-				try_limit = std::stoi(res[1]);
-			} else if(res[0] == "csv_separator") {
-				csv_separator = res[1];
-			} else if(res[0] == "ca_cert_file_path") {
-				ca_cert_file_path = res[1];
-			} else if(res[0] == "ca_cert_dir_path") {
-				ca_cert_dir_path = res[1];
-			} else if(res[0] == "type_log") {
-				auto vec = Utils::split(res[1], ',');
-				std::set<std::string> param_type_log(vec.begin(), vec.end());
-				type_log = std::move(param_type_log);
-			} else if(res[0] == "max_log_cnt") {
-				max_log_cnt = std::stoi(res[1]);
-			} else if(res[0] == "bind_interface") {
-				param_interface = res[1];
-			}
-		} else if(res[0] == "filter" && res.size() == 4) {
-			Filter f;
-			if(res[1] == "regexp") {
-				f.type = Filter::type_regexp;
-				try {
-					f.reg = std::regex(res[3], std::regex_constants::ECMAScript | std::regex_constants::icase);
-				} catch(std::exception& e) {
-					throw std::runtime_error(std::string("Parameter 'filter regexp' is not valid: ") + e.what());
-				}
-			} else if(res[1] == "get") {
-				f.type = Filter::type_get;
-				f.val = res[3];
-			} else if(res[1] == "ext") {
-				f.type = Filter::type_ext;
-				f.val = res[3];
-			} else {
-				throw std::runtime_error("Parameter 'filter' is not valid");
-			}
-			if(res[2] == "include") {
-				f.dir = Filter::include;
-			} else if(res[2] == "exclude") {
-				f.dir = Filter::exclude;
-			} else if(res[2] == "skip") {
-				f.dir = Filter::skip;
-			} else {
-				throw std::runtime_error("Parameter 'filter' is not valid");
-			}
-			param_filter.push_back(f);
-		} else if(res[0] == "xml_tag" && res.size() == 3) {
-			Xml_tag x;
-			x.def = res[2];
-			param_xml_tag.emplace(res[1], x);
-		} else if(res[0] == "xml_tag" && res.size() == 4) {
-			auto it = param_xml_tag.find(res[1]);
-			if(it != param_xml_tag.end()) {
-			   it->second.regexp.emplace_back(res[2], res[3]);
-			}
+		} else if(v[0] == "get") {
+			f.type = Filter::type_get;
+			f.val = v[2];
+		} else if(v[0] == "ext") {
+			f.type = Filter::type_ext;
+			f.val = v[2];
+		} else {
+			throw std::runtime_error("Parameter 'filter' (" + filter + ") is not valid");
+		}
+		if(v[1] == "include") {
+			f.dir = Filter::include;
+		} else if(v[1] == "exclude") {
+			f.dir = Filter::exclude;
+		} else if(v[1] == "skip") {
+			f.dir = Filter::skip;
+		} else {
+			throw std::runtime_error("Parameter 'filter' (" + filter + ") is not valid");
+		}
+		param_filter.push_back(std::move(f));
+	}
+
+	const auto& tags = options["sitemap.xml_tag"].as<std::vector<std::string>>();
+	for(const auto& tag : tags) {
+		auto v = Utils::split(tag, ' ');
+		if(v.size() != 3) {
+			throw std::runtime_error("Parameter 'xml_tag' (" + tag + ") is not valid");
+		}
+		param_xml_tag[v[0]];
+		if(v[2] == "default") {
+			param_xml_tag[v[0]].def = v[2];
+		} else {
+			param_xml_tag[v[0]].regexp.emplace_back(v[1], v[2]);
 		}
 	}
+	
 	if(param_url.empty()) {
 		throw std::runtime_error("Parameter 'url' is empty");
 	}
@@ -445,6 +438,7 @@ void Main::import_param(const std::string& file) {
 	if(sitemap_dir.empty()) {
 		throw std::runtime_error("Parameter 'sitemap_dir' is empty");
 	}
+
 	auto it = type_log.find("console");
 	if(it != type_log.end()) {
 		type_log.erase(it);
@@ -550,7 +544,7 @@ void Main::start() {
 		threads.emplace_back(i + 1);
 		threads[i].start();
 	}
-	for(auto &thread : threads) {
+	for(auto& thread : threads) {
 		thread.join();
 	}
 
@@ -646,8 +640,8 @@ bool Main::handle_url(Url_struct* url_new, bool filter) {
 	std::string found = std::regex_replace(url_new->found, std::regex(R"(^\s+|\s+$)"), std::string(""));
 
 	// ----- resolve
-	boost::system::result<url> rb = parse_uri_reference(url_new->base_href);
-	boost::system::result<url> rd = parse_uri_reference(found);
+	system::result<url> rb = urls::parse_uri_reference(url_new->base_href);
+	system::result<url> rd = urls::parse_uri_reference(found);
 	if(!rb) {
 		if(log_bad_url_file) {
 			log_bad_url_file.write({url_new->base_href, std::to_string(url_new->parent)});
@@ -1239,10 +1233,9 @@ int main(int argc, char *argv[]) {
 			std::cout << elapsed_str << std::endl;
 		}
 	} catch (const std::exception& e) {
+		std::cout << e.what() << std::endl;
 		if(main_obj.log_other) {
 			main_obj.log_other.write({e.what()});
-		} else {
-			std::cout << e.what() << std::endl;
 		}
 	}
 	return 0;
