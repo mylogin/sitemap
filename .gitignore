@@ -1,4 +1,1 @@
-/sitemap*
-!/sitemap.cpp
-!/sitemap.h
-*.o
+/build/

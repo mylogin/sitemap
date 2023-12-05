@@ -1,7 +1,9 @@
 #ifndef SITEMAP_H
 #define SITEMAP_H
 
+#ifndef CPPHTTPLIB_OPENSSL_SUPPORT
 #define CPPHTTPLIB_OPENSSL_SUPPORT
+#endif
 
 #include <fstream>
 #include <sstream>
@@ -20,6 +22,7 @@
 
 #include <boost/url.hpp>
 #include <boost/program_options.hpp>
+#include <boost/algorithm/string.hpp>
 #include "deps/http/httplib.h"
 #include "deps/parser/html.hpp"
 
@@ -34,7 +37,7 @@
 #include <signal.h>
 #endif
 
-using namespace boost;
+using str_vec = std::vector<std::string>;
 
 class Timer {
 public:
@@ -42,22 +45,16 @@ public:
 	void reset() {
 		beg_ = clock_::now();
 	}
-	double elapsed() const {
+	double seconds() const {
 		return std::chrono::duration_cast<second_>(clock_::now() - beg_).count();
 	}
 	std::string elapsed_str(int p = 4) const;
 private:
-	using clock_ = std::chrono::high_resolution_clock;
-	using second_ = std::chrono::duration<double, std::ratio<1> >;
+	using clock_ = std::chrono::steady_clock;
+	using hours_ = std::chrono::hours;
+	using minutes_ = std::chrono::minutes;
+	using second_ = std::chrono::duration<double>;
 	std::chrono::time_point<clock_> beg_;
-};
-
-class Utils {
-public:
-	static std::vector<std::string> split(const std::string&, char, bool ignore_ws = true);
-	static std::string join(const std::vector<std::string>&, char);
-	static std::string str_tolower(std::string);
-	static bool file_exists(const std::string&);
 };
 
 class XML_writer {
@@ -193,7 +190,7 @@ public:
 	void try_again(Url_struct*);
 	bool get_url(Thread*);
 	std::string get_resolved(int);
-	std::string uri_normalize(const url&);
+	std::string uri_normalize(const boost::url&);
 	bool exit_handler();
 
 	// setting
@@ -232,7 +229,7 @@ public:
 	std::unordered_map<std::string, Xml_tag> param_xml_tag;
 
 	bool running = true;
-	urls::url uri;
+	boost::urls::url uri;
 	std::condition_variable cond;
 	std::mutex mutex;
 	std::mutex mutex_log;
@@ -297,6 +294,12 @@ struct Tag {
 namespace sys {
 
 bool handle_exit();
+
+}
+
+namespace utils {
+
+bool file_exists(const std::string&);
 
 }
 

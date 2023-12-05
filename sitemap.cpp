@@ -41,51 +41,20 @@ std::vector<Tag> Tags_other{
 };
 
 std::string Timer::elapsed_str(int p) const {
-	std::stringstream s;
-	s << std::fixed << std::setprecision(p);
-	double e = elapsed();
-	if(e < 60) {
-		s << e << "s";
-	} else if(e < 60 * 60) {
-		s << e / 60 << "m";
-	} else {
-		s << e / 60 / 60 << "h";
+	std::stringstream ret;
+	const auto diff = clock_::now() - beg_;
+	const auto h = std::chrono::duration_cast<hours_>(diff);
+	const auto m = std::chrono::duration_cast<minutes_>(diff - h);
+	const second_ s = diff - h - m;
+	ret << std::fixed << std::setprecision(p);
+	if(h != hours_::zero()) {
+		ret << h.count() << " h, ";
 	}
-	return s.str();
-}
-
-std::vector<std::string> Utils::split(const std::string& str, char ch, bool ignore_ws) {
-	std::string elem;
-	std::stringstream si(str);
-	std::vector<std::string> elems;
-	while(std::getline(si, elem, ch)) {
-		if(ignore_ws && elem == "") {
-			continue;
-		}
-		elems.push_back(elem);
+	if(m != minutes_::zero()) {
+		ret << m.count() << " min, ";
 	}
-	return elems;
-}
-
-std::string Utils::join(const std::vector<std::string>& v, char ch) {
-	std::stringstream ss;
-	for(size_t i = 0; i < v.size(); ++i) {
-		if(i != 0) {
-			ss << ch;
-		}
-		ss << v[i];
-	}
-	return ss.str();
-}
-
-std::string Utils::str_tolower(std::string s) {
-	std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return std::tolower(c); });
-	return s;
-}
-
-bool Utils::file_exists(const std::string& str) {
-   std::ifstream fs(str);
-   return fs.is_open();
+	ret << s.count() << " s";
+	return ret.str();
 }
 
 XML_writer::XML_writer(std::ostream& stream) : output(stream) {}
@@ -193,7 +162,7 @@ CSV_Writer& CSV_Writer::add(T str) {
 }
 
 template<typename T>
-CSV_Writer& CSV_Writer::operator<<(const T& t){
+CSV_Writer& CSV_Writer::operator<<(const T& t) {
 	return this->add(t);
 }
 
@@ -219,7 +188,7 @@ Log::Log(const std::string& _file_name, const std::string& ext, const std::vecto
 			if(file_num++ >= main_obj.max_log_cnt) {
 				throw std::runtime_error("Unable to create " + file_name);
 			}
-		} while(Utils::file_exists(file_name));
+		} while(utils::file_exists(file_name));
 	}
 	file.open(file_name, std::ios::out | std::ios::trunc);
 	if(!file.is_open()) {
@@ -364,81 +333,82 @@ void Main::import_param(const std::string& file) {
 	if(param_url.empty()) {
 		throw std::runtime_error("Parameter 'url' is empty");
 	}
-	system::result<urls::url> r = urls::parse_uri_reference(param_url);
+	boost::system::result<boost::urls::url> r = boost::urls::parse_uri_reference(param_url);
 	if(!r) {
 		throw std::runtime_error("Parameter 'url' is not valid");
 	}
 	uri = r.value();
 
-	if(options.count("log.type")) {
-		auto vec = Utils::split(options["log.type"].as<std::string>(), ',');
-		std::set<std::string> param_type_log(vec.begin(), vec.end());
-		type_log = std::move(param_type_log);
-	}
-
 	if(thread_cnt >= 1 && thread_cnt <= 10) {
 		thread_cnt = 1;
 	}
 
-	const auto& filters = options["filters.filter"].as<std::vector<std::string>>();
-	for(const auto& filter : filters) {
-		auto v = Utils::split(filter, ' ');
-		if(v.size() != 3) {
-			throw std::runtime_error("Parameter 'filter' (" + filter + ") is not valid");
-		}
-		Filter f;
-		if(v[0] == "regexp") {
-			f.type = Filter::type_regexp;
-			try {
-				f.reg = std::regex(v[2], std::regex_constants::ECMAScript | std::regex_constants::icase);
-			} catch(std::exception& e) {
-				throw std::runtime_error(std::string("Parameter 'filter' (" + filter + ") is not valid: ") + e.what());
+	if(options.count("filters.filter")) {
+		const auto& filters = options["filters.filter"].as<std::vector<std::string>>();
+		for(const auto& filter : filters) {
+			str_vec v;
+			boost::split(v, filter, boost::is_any_of(" "));
+			if(v.size() != 3) {
+				throw std::runtime_error("Parameter 'filter' (" + filter + ") is not valid");
 			}
-		} else if(v[0] == "get") {
-			f.type = Filter::type_get;
-			f.val = v[2];
-		} else if(v[0] == "ext") {
-			f.type = Filter::type_ext;
-			f.val = v[2];
-		} else {
-			throw std::runtime_error("Parameter 'filter' (" + filter + ") is not valid");
+			Filter f;
+			if(v[0] == "regexp") {
+				f.type = Filter::type_regexp;
+				try {
+					f.reg = std::regex(v[2], std::regex_constants::ECMAScript | std::regex_constants::icase);
+				} catch(std::exception& e) {
+					throw std::runtime_error(std::string("Parameter 'filter' (" + filter + ") is not valid: ") + e.what());
+				}
+			} else if(v[0] == "get") {
+				f.type = Filter::type_get;
+				f.val = v[2];
+			} else if(v[0] == "ext") {
+				f.type = Filter::type_ext;
+				f.val = v[2];
+			} else {
+				throw std::runtime_error("Parameter 'filter' (" + filter + ") is not valid");
+			}
+			if(v[1] == "include") {
+				f.dir = Filter::include;
+			} else if(v[1] == "exclude") {
+				f.dir = Filter::exclude;
+			} else if(v[1] == "skip") {
+				f.dir = Filter::skip;
+			} else {
+				throw std::runtime_error("Parameter 'filter' (" + filter + ") is not valid");
+			}
+			param_filter.push_back(std::move(f));
 		}
-		if(v[1] == "include") {
-			f.dir = Filter::include;
-		} else if(v[1] == "exclude") {
-			f.dir = Filter::exclude;
-		} else if(v[1] == "skip") {
-			f.dir = Filter::skip;
-		} else {
-			throw std::runtime_error("Parameter 'filter' (" + filter + ") is not valid");
-		}
-		param_filter.push_back(std::move(f));
 	}
 
-	const auto& tags = options["sitemap.xml_tag"].as<std::vector<std::string>>();
-	for(const auto& tag : tags) {
-		auto v = Utils::split(tag, ' ');
-		if(v.size() != 3) {
-			throw std::runtime_error("Parameter 'xml_tag' (" + tag + ") is not valid");
+	if(options.count("sitemap.xml_tag")) {
+		const auto& tags = options["sitemap.xml_tag"].as<std::vector<std::string>>();
+		for(const auto& tag : tags) {
+			str_vec v;
+			boost::split(v, tag, boost::is_any_of(" "));
+			if(v.size() != 3) {
+				throw std::runtime_error("Parameter 'xml_tag' (" + tag + ") is not valid");
+			}
+			param_xml_tag[v[0]];
+			if(v[2] == "default") {
+				param_xml_tag[v[0]].def = v[2];
+			} else {
+				param_xml_tag[v[0]].regexp.emplace_back(v[1], v[2]);
+			}
 		}
-		param_xml_tag[v[0]];
-		if(v[2] == "default") {
-			param_xml_tag[v[0]].def = v[2];
-		} else {
-			param_xml_tag[v[0]].regexp.emplace_back(v[1], v[2]);
-		}
-	}
-	
-	if(param_url.empty()) {
-		throw std::runtime_error("Parameter 'url' is empty");
-	}
-	if(log_dir.empty()) {
-		throw std::runtime_error("Parameter 'log_dir' is empty");
-	}
-	if(sitemap_dir.empty()) {
-		throw std::runtime_error("Parameter 'sitemap_dir' is empty");
 	}
 
+	if(options.count("log.type")) {
+		str_vec vec;
+		boost::split(vec, options["log.type"].as<std::string>(), boost::is_any_of(","));
+		std::set<std::string> param_type_log(vec.begin(), vec.end());
+		type_log = std::move(param_type_log);
+		if(type_log.find("csv") != type_log.end() || type_log.find("xml") != type_log.end()) {
+			if(log_dir.empty()) {
+				throw std::runtime_error("Parameter 'log.dir' is empty");
+			}
+		}
+	}
 	auto it = type_log.find("console");
 	if(it != type_log.end()) {
 		type_log.erase(it);
@@ -489,6 +459,9 @@ void Main::import_param(const std::string& file) {
 		log_other.init(type_log, "other", {Log::Field::msg});
 	}
 	if(sitemap) {
+		if(sitemap_dir.empty()) {
+			throw std::runtime_error("Parameter 'sitemap.dir' is empty");
+		}
 		std::string file_name = sitemap_dir + "/" + xml_name + "1.xml";
 		sitemap_file.open(file_name, std::ofstream::out | std::ofstream::binary | std::ofstream::trunc);
 		if(!sitemap_file.is_open()) {
@@ -497,8 +470,8 @@ void Main::import_param(const std::string& file) {
 	}
 }
 
-std::string Main::uri_normalize(const url& uri) {
-	url u = uri;
+std::string Main::uri_normalize(const boost::url& uri) {
+	boost::url u = uri;
 	u.normalize();
 	u.remove_fragment();
 	if(u.port() == "80" || u.port().empty()) {
@@ -508,16 +481,17 @@ std::string Main::uri_normalize(const url& uri) {
 		u.set_path_absolute(true);
 	}
 	if(u.has_query()) {
-		auto split_query = Utils::split(u.query(), '&');
+		str_vec split_query;
+		boost::split(split_query, u.query(), boost::is_any_of("&"));
 		std::sort(split_query.begin(), split_query.end());
-		u.set_query(Utils::join(split_query, '&'));
+		u.set_query(boost::join(split_query, "&"));
 	}
 	return u.buffer();
 }
 
 bool Main::exit_handler() {
 	std::unique_lock<std::mutex> lk(mutex);
-	std::cout << "stopping..." << std::endl;
+	std::cout << "Stopping..." << std::endl;
 	running = false;
 	lk.unlock();
 	cond.notify_all();
@@ -640,8 +614,8 @@ bool Main::handle_url(Url_struct* url_new, bool filter) {
 	std::string found = std::regex_replace(url_new->found, std::regex(R"(^\s+|\s+$)"), std::string(""));
 
 	// ----- resolve
-	system::result<url> rb = urls::parse_uri_reference(url_new->base_href);
-	system::result<url> rd = urls::parse_uri_reference(found);
+	boost::system::result<boost::url> rb = boost::urls::parse_uri_reference(url_new->base_href);
+	boost::system::result<boost::url> rd = boost::urls::parse_uri_reference(found);
 	if(!rb) {
 		if(log_bad_url_file) {
 			log_bad_url_file.write({url_new->base_href, std::to_string(url_new->parent)});
@@ -662,8 +636,8 @@ bool Main::handle_url(Url_struct* url_new, bool filter) {
 	if(!rb || !rd) {
 		return false;
 	}
-	url b = rb.value();
-	url d = rd.value();
+	boost::url b = rb.value();
+	boost::url d = rd.value();
 	b.resolve(d);
 
 	// ----- base filter
@@ -693,11 +667,13 @@ bool Main::handle_url(Url_struct* url_new, bool filter) {
 				res = std::regex_search(b.buffer().data(), (*it_filter).reg);
 			} else if((*it_filter).type == Filter::type_get) {
 				if(b.has_query()) {
-					auto split_query = Utils::split(b.query(), '&');
+					str_vec split_query;
+					boost::split(split_query, b.query(), boost::is_any_of("&"));
 					check = true;
 					res = false;
 					for(auto i : split_query) {
-						auto query_kv = Utils::split(i, '=');
+						str_vec query_kv;
+						boost::split(query_kv, i, boost::is_any_of("="));
 						if(query_kv[0] == (*it_filter).val) {
 							res = true;
 							break;
@@ -734,7 +710,7 @@ bool Main::handle_url(Url_struct* url_new, bool filter) {
 			}
 		}
 	}
-	url uri_;
+	boost::url uri_;
 	uri_.set_path(b.path());
 	if(b.has_query()) {
 		uri_.set_query(b.query());
@@ -995,7 +971,7 @@ void Thread::load() {
 			} else {
 				result = std::make_shared<httplib::Result>(cli->Head(m_url->path.c_str()));
 			}
-			double time = tmr.elapsed();
+			double time = tmr.seconds();
 			m_url->time += time;
 			m_url->try_cnt++;
 			if(main_obj.log_info_console) {
@@ -1129,7 +1105,7 @@ void Thread::set_url(std::unique_ptr<Url_struct>& new_url) {
 
 bool Handler::attr_charset(html::node& n, std::string& href, Thread* t) {
 	if(t->m_url->charset.empty()) {
-		if(Utils::str_tolower(n.get_attr("http-equiv")) == "content-type") {
+		if(boost::to_lower_copy(n.get_attr("http-equiv")) == "content-type") {
 			auto pos = href.find("charset=");
 			if(pos != std::string::npos) {
 				t->m_url->charset = href.substr(pos + 8);
@@ -1141,7 +1117,7 @@ bool Handler::attr_charset(html::node& n, std::string& href, Thread* t) {
 
 bool Handler::attr_refresh(html::node& n, std::string& href, Thread* t) {
 	if(t->m_url->charset.empty()) {
-		if(Utils::str_tolower(n.get_attr("http-equiv")) == "refresh") {
+		if(boost::to_lower_copy(n.get_attr("http-equiv")) == "refresh") {
 			std::regex e("[\\d\\s]+;\\s*url\\s*=\\s*(.+)", std::regex_constants::ECMAScript | std::regex_constants::icase);
 			std::smatch m;
 			if(std::regex_match(href, m, e)) {
@@ -1156,9 +1132,11 @@ bool Handler::attr_refresh(html::node& n, std::string& href, Thread* t) {
 }
 
 bool Handler::attr_srcset(html::node& n, std::string& href, Thread* t) {
-	auto src_all = Utils::split(href, ',');
+	str_vec src_all;
+	boost::split(src_all, href, boost::is_any_of(","));
 	for(auto v : src_all) {
-		auto src = Utils::split(v, ' ');
+		str_vec src;
+		boost::split(src, v, boost::is_any_of(" "));
 		if(!src.empty()) {
 			std::unique_ptr<Url_struct> url(new Url_struct);
 			url->found = src[0];
@@ -1214,6 +1192,15 @@ bool handle_exit() {
 
 }
 
+namespace utils {
+
+bool file_exists(const std::string& str) {
+   std::ifstream fs(str);
+   return fs.is_open();
+}
+
+}
+
 int main(int argc, char *argv[]) {
 	try {
 		if(argc != 2) {
@@ -1227,10 +1214,9 @@ int main(int argc, char *argv[]) {
 		}
 		main_obj.finished();
 		auto elapsed_str = "Elapsed time: " + tmr.elapsed_str();
+		std::cout << elapsed_str << std::endl;
 		if(main_obj.log_other) {
 			main_obj.log_other.write({elapsed_str});
-		} else {
-			std::cout << elapsed_str << std::endl;
 		}
 	} catch (const std::exception& e) {
 		std::cout << e.what() << std::endl;

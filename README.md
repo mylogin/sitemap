@@ -4,7 +4,7 @@
 	cmake -DBOOST_ROOT=/path/to/boost ..
 	cmake --build . --config Release
 	# edit setting.conf
-	./sitemap setting.conf
+	./sitemap ../setting.conf
 	# press ctrl+c to exit or wait until the program ends
 
 ## Features
@@ -48,7 +48,7 @@ Number of retries if the request fails.
 #### redirect_limit (default: 5)
 Limit redirect count to avoid infinite redirects.
 
-#### url_limit (default: empty)
+#### url_limit (default: 0)
 Limit the amount of urls the crawler should crawl.
 
 #### bind_interface (default: empty, values: IP address, Interface name or host name)
