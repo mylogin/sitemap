@@ -1,10 +1,6 @@
 #ifndef SITEMAP_H
 #define SITEMAP_H
 
-#ifndef CPPHTTPLIB_OPENSSL_SUPPORT
-#define CPPHTTPLIB_OPENSSL_SUPPORT
-#endif
-
 #include <fstream>
 #include <sstream>
 #include <thread>
@@ -234,7 +230,7 @@ public:
 	std::mutex mutex;
 	std::mutex mutex_log;
 	int thread_work = 0;
-	std::unordered_map<std::string, int> url_unique;
+	std::unordered_map<std::string, size_t> url_unique;
 	std::vector<std::unique_ptr<Url_struct>> url_all;
 	std::queue<Url_struct*> url_queue;
 	bool url_lim_reached = false;

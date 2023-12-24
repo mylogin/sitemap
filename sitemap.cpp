@@ -339,10 +339,6 @@ void Main::import_param(const std::string& file) {
 	}
 	uri = r.value();
 
-	if(thread_cnt >= 1 && thread_cnt <= 10) {
-		thread_cnt = 1;
-	}
-
 	if(options.count("filters.filter")) {
 		const auto& filters = options["filters.filter"].as<std::vector<std::string>>();
 		for(const auto& filter : filters) {
@@ -538,7 +534,7 @@ bool Main::set_url(std::unique_ptr<Url_struct>& url) {
 	auto it = url_unique.find(url->normalize);
 	if(it == url_unique.end()) {
 		url_unique[url->normalize] = url_all.size();
-		url->id = url_all.size() + 1;
+		url->id = static_cast<int>(url_all.size() + 1);
 		if(url->handle == url_handle_t::none) {
 			if(log_skipped_url_file) {
 				log_skipped_url_file.write({url->resolved, std::to_string(url->parent)});
@@ -778,7 +774,7 @@ void Main::finished() {
 			if((*it)->handle == url_handle_t::query_parse && !(*it)->is_html) {
 				continue;
 			}
-			int str_size = 0;
+			size_t str_size = 0;
 			std::vector<std::pair<std::string, std::string>> tags;
 			tags.emplace_back("loc", writer.escape_str((*it)->resolved));
 			str_size += tags.back().second.size();
@@ -1204,7 +1200,7 @@ bool file_exists(const std::string& str) {
 int main(int argc, char *argv[]) {
 	try {
 		if(argc != 2) {
-			throw std::runtime_error("Specify setting file");
+			throw std::runtime_error("Usage: " + std::string(argv[0]) + " setting.conf");
 		}
 		Timer tmr;
 		main_obj.import_param(argv[1]);

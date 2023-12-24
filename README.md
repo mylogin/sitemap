@@ -19,9 +19,10 @@
 * Detailed information logs.
 
 ## Dependencies
-* Boost.URL
-* Boost.Program_options
-* OpenSSL library to use HTTPS. Add/remove `CPPHTTPLIB_OPENSSL_SUPPORT` macro from sitemap.h.
+* Boost URL
+* Boost Program_options
+* Boost String Algo
+* OpenSSL library for HTTPS support (set HTTPLIB_REQUIRE_OPENSSL=OFF flag to allow build if lib not found).
 
 ## Options
 
